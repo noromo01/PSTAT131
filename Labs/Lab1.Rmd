@@ -162,9 +162,9 @@ head(flights)
 
 flights %>% 
   filter(arr_delay>=120) %>% 
-  filter(dest=="IAH" || dest=="HOU") %>% 
-  filter(carrier=="UA" || carrier=="AA" || carrier=="DL") %>% 
-  filter(month==7||month=8||month=8) 
+  filter(dest==c("IAH","HOU")) %>% 
+  filter(carrier==c("UA", "AA", "DL")) %>% 
+  filter(month==c(7:9)) 
 
 ```
 Often in machine learning, we end up working with very large data sets that have a lot of columns. The `mpg` data set is pretty small, but we can still practice with it.
