@@ -1,0 +1,55 @@
+---
+title: "Data Memo"
+author: "Noah Moyer"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE,
+                      warning = FALSE)
+```
+
+## Predicting Race Performance in Professional Road Cycling
+
+### Introduction
+
+I am an avid cyclist. Personally, I enjoy mountain biking but I really like to watch professional road cycling. Elite road cycling consists of 18 teams where each team has a roster of approximately 30 cyclists. Throughout the season, there are a number of races of different quality. The best top quality races are designated UWT and are known as World Tour races. This includes famous races such as the Tour de France but also less known races such as the Tour de Suisse or Paris-Roubaix. In this project, I am going to use results from the World Tour races in order to create an algorithm that can predict performance at races. This will have two major components that have many subcomponents: rider profile and race profile. Rider profile will include many factors such as rider age, weight, number of wins, overall ranking, and specific characteristics such as how good of a climber or sprinter the rider is. Race profile will also include many factors such as distance, elevation meters, winning race time, quality of the riders there, or what type of race it is (hilly, flat, mountainious, etc).
+
+### Overview of my dataset
+
+I shall be relying on a data set known as [*ProCyclingStats*](https://www.procyclingstats.com/index.php). This website contains a multitude of in depth data about specific riders as well as specific races. I do not plan on using all of the data provided on the website. In order to obtain the data from this website, I will be using an html to csv converter as well as some data cleaning. There were approximately 180 World Tour races in 2022. Each race has approximately 130 finishers. This will make for a data set that will have approximately 23,400 observations. I will have approximately 24 predictors, 12 designated to rider profile and 12 designated to race profile. All variables are numeric except for race type which is a categorical variable. There are some missing data values. This mainly revolves around some riders missing some characteristics of their rider profile. For example, some riders are missing rider weight or rider height. This is a small proportion of riders and is limited to mostly lower-tier riders. If there is a way to incorporate this data into my model even with the missing values I will but it will not be a huge loss to my data set if these entries are just omitted.
+
+### Overview of my research questions
+
+I am interesting in predicting what place a particular rider will finish at a particular race. Thus, I will use a rider profile and a race profile to predict a rider outcome at a race. While race result could be viewed as a numeric discrete variable, you can't finish in 1.5th place, I am going to treat the response variable as a continues numeric variable for simplicity. Thus, I will use a regression approach. This is for two major reasons. First off, I believe if I am comparing two riders in a particular race, knowing that the algorithm predicts that one rider will finish in 1.25 place versus another rider will finish in 1.75 place is productive and gives me information about which rider the algorithm predicts will do better. I also am using regression because if I used classification this means that if the algorithm predicts a rider finishing in 2nd but then a rider actually finishes in 3rd this would be considered a failure even though the algorithm was only one off of predicting the correct value. Bike racing is by nature a sport that is difficult to predict so I do not expect my algorithm to be able to have specific finishing place precision. I believe my model is predictive because I would like to predict Y with the minimum error possible.
+
+### Project Timeline
+
+I would like to have my dataset fully loaded and cleaned by the end of this weekend. My timeline will follow the timeline provided by the syllabus for this class. This means that I want to tidy my data by the end of week 3 and finish exploratory data analysis by the end of week 5. I would like to finish running models by week 7 and be done with my rough draft of my write up by week 8.
+
+### Questions and Concerns
+
+The biggest thing I am concerned about is the volatility in bike racing. There are many variables that I will not be able to include in my dataset such as race mechanicals and crashes, rider general feel/fitness, or even the weather throughout the race. These variables have large impacts on the race result. Thus, I am concerned that the algorithm will have a hard time predicting results. Also, once a rider finishes outside of the top 10 or 20, their result does not matter much (ie the difference between finishing 54 and 129 is not large). This makes me wonder if I should do a classification approach with the following categories.  
+
+  -1st  
+  
+  -2nd  
+  
+  -3rd  
+  
+  -4-5th  
+  
+  -6-10th  
+  
+  -11-20st  
+  
+  -21-50th  
+  
+  -All other finishers  
+  
+Would this approach lead to better results? On the other hand, maybe the best way to implement the algorithm would be to apply a race startlist to a particular race and then rank the algorithm results and use that to predict who is most likely to win. I do not expect this algorithm to be perfect but I would find it interesting to see who the algorithm predicts is going to win a particular race and then compare that to what I think/various sport commentators think.
+

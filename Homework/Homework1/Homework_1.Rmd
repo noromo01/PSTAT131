@@ -1,0 +1,109 @@
+---
+title: "Homework_1"
+author: "Noah Moyer"
+date: "2023-01-23"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Machine Learning Main Ideas
+
+### Question 1
+Supervised learning involves response variables that are used to train the algorithm on how to predict outputs. Unsupervised learning does not have response variables and uses clustering analysis and dimensionality reduction in order to create an algorithm. The major difference between these two is that supervised learning has a response variable to teach the algorithm while unsupervised learning does not.
+
+### Question 2
+In a regression model, the response variable is quantitative while in a classification model the response variable is qualitative. For machine learning, this means that a regression model is classified by how close a predicted response variable is to the training response variable. In a classification model a response variable is either categorized as a success or a failure depending on the training response variable.
+
+### Question 3
+Two common error metrics for a regression model is mean squared error and r-squared value. Two common error metrics for a classification model is accuracy and area under ROC curve.
+
+### Question 4
+A descriptive model is by its ability to best visually emphasize a trend in data. A predictive model is chosen so that the response variable is predicted with minimum reducible error. An inferential model tests theories in order to state relationships between outcome and predictors.
+
+### Question 5
+A mechanistic driven model assumes a parametric form for the predictor equation. This means that more parameters leads to more flexibility but this can lead to overfitting. An empirically driven model has few assumptions about the predictor equation while means that the equation can be more flexible. Downsides of this include that it requires a large number of observations and potentially overfitting. This overfitting is caused by the fact that the model is very flexible which can be a benifit. A mechanistic model is easier to understand because we have been taught parametric equations our whole life so they are easy to interprit. A non-parametric equation in an empirically driven model can be harder to interprit and understand. A mechinistically driven model might have higher bias but lower variance. This is because the simpler model might be more likely to be wrong but it will not show strong variance as the model changes. An empirically driven model will have low bias but high variance as it will be very flexible which may lead to overfitting.
+
+### Question 6
+The first question is predictive because a response can clearly be predicted and understood. A model would be created that attempts to minimize error. The second question is inferential because we are looking for the relationship between personal contact with a candidate and a change in likelihood to vote. An inferential model would test theories around this and provide ideas.
+
+## Exploratory Data Analysis
+
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(readr)
+
+#Make sure the data was read in correctly
+head(mpg)
+```
+
+### Exercise 1
+
+```{r}
+
+ggplot(mpg, aes(x=hwy)) +
+  geom_histogram(color="black", fill="lightblue") +
+  labs(title="Highway MPG", x="MPG", y="Count") +
+  theme_classic()
+  
+
+```
+
+It appears as if the data is bimodel. There is one concentration around 15-18 MPG and another concentration around 25-28 MPG. Perhaps the first concentration is trucks while the second concentration is more traditional cars and SUVs.
+
+### Exercise 2
+```{r}
+ggplot(mpg, aes(x=hwy, y=cty)) +
+  geom_point() +
+  geom_smooth() +
+  labs(title="MPG in City and on Highway", x="MPG on Highway", y="MPG in City")
+
+
+```
+
+As is seen in the scatterplot, as highway MPG increases so does city MPG. There is a clear direct linear relationship. It should also be noted that MPG is always better on the highway than in the city.
+
+### Exercise 3
+
+```{r}
+ggplot(mpg, aes(x=fct_infreq(manufacturer))) +
+  geom_bar() +
+  labs(title="Count of Number of Cars for Each Manufacturer", x="Manufacturer", y="Count") +
+  coord_flip()
+
+```
+
+Dodge produces the most cars and Lincoln produces the least.
+
+### Exercise 4
+
+```{r}
+
+ggplot(mpg, aes(factor(cyl), hwy)) +
+  geom_boxplot() +
+  geom_jitter(alpha=0.8) +
+  labs(title="Highway MPG for Cars with a Different Number of Cylinders", x="Number of cylinders", y="Highway MPG")
+
+```
+
+
+There is a clear relationship between number of cylinders and highway MPG, as the number of cylinders increases the MPG drops. The boxplot for the number of cars with five cylinders looks weird because there is not a lot of cars with five cylinders.
+
+### Exercise 5
+
+```{r}
+library(corrplot)
+
+#correlation can only be calculated for numeric variables
+only_numeric_mpg <- data.frame(mpg$displ, mpg$cyl, mpg$cty, mpg$hwy)
+
+#calculate correlation
+mpg_cor <- cor(only_numeric_mpg)
+
+#plot correlation
+corrplot(mpg_cor, method="square", order="FPC", type="lower", diag=FALSE)
+```
+
