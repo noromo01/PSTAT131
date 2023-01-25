@@ -26,8 +26,11 @@ tidymodels_prefer()
 
 set.seed(3435)
 
+#splits the diamonds dataset into two categories, 80% is in one cat and 20% is in another
 diamonds_split <- initial_split(diamonds, prop = 0.80,
                                 strata = price)
+
+#training is where 80% of the data is going, 20% is where the rest of the data is going
 diamonds_train <- training(diamonds_split)
 diamonds_test <- testing(diamonds_split)
 ```
@@ -39,6 +42,7 @@ You'll notice that the textbooks use the `lm()` function to fit a linear regress
 To fit any model with `tidymodels`, the first step is to create a recipe. The structure of this recipe is similar to that of `lm()`; the outcome is listed first, then the features are added:
 
 ```{r}
+#like the lm function, price is being regressed on all other predictors
 simple_diamonds_recipe <-
   recipe(price ~ ., data = diamonds_train)
 ```
@@ -54,6 +58,7 @@ More specifically, we see that there are 9 predictors.
 We should dummy-code all categorical predictors. We can do that easily with `step` functions:
 
 ```{r}
+#step_dummy is used to dummy code all categorical predictors
 diamonds_recipe <- recipe(price ~ ., data = diamonds_train) %>% 
   step_dummy(all_nominal_predictors())
 ```
@@ -65,6 +70,7 @@ Running the above code is essentially like writing down the instructions for a r
 We'll also use `kbl()` and `kable_styling()` from the [`kableExtra` package](https://cran.r-project.org/web/packages/kableExtra/vignettes/awesome_table_in_html.html), which we installed above. It's not necessary to use these functions, but doing so allows the table of data to display more neatly, so that all the columns and rows are actually legible. We also use `head()` to select only the first few rows; otherwise the entire data frame would print, which would be time-consuming. Also note the use of `scroll_box()`, allowing us to scroll through the entire data set.
 
 ```{r}
+#just displays the head of the dataset, note that kable, kable_styling, scroll_box are used for formatting while bake and prep are used to read in the data
 prep(diamonds_recipe) %>% 
   bake(new_data = diamonds_train) %>% 
   head() %>% 
@@ -82,6 +88,7 @@ prep(diamonds_recipe) %>%
 Next, we can specify the model engine that we want to fit:
 
 ```{r}
+#create the model
 lm_model <- linear_reg() %>% 
   set_engine("lm")
 ```
@@ -89,6 +96,7 @@ lm_model <- linear_reg() %>%
 We set up a workflow. This step might seem unnecessary now, with only one model and one recipe, but it can make life easier when you are trying out a series of models or several different recipes later on.
 
 ```{r}
+#set up the workflow, use the diamonds_recipe format, diamonds_recipe is a recipe datatype
 lm_wflow <- workflow() %>% 
   add_model(lm_model) %>% 
   add_recipe(diamonds_recipe)
@@ -97,6 +105,7 @@ lm_wflow <- workflow() %>%
 Finally, we can fit the linear model to the training set:
 
 ```{r}
+#fit the model to the diamonds training data
 lm_fit <- fit(lm_wflow, diamonds_train)
 ```
 
@@ -312,14 +321,15 @@ If there is even one `NA` value, for instance, `mean()` will report `NA`. We can
 
 ```{r}
 airquality %>% 
-  summarise(mean(Ozone, na.rm = T))
+  summarise(mean(Ozone, na.rm = TRUE))
 ```
 
 One way we could choose to handle the missingness is to remove the variables with any missing data by simply not including them. However, here one of those variables is our outcome, and it would make very little sense to remove it.
 
-Another way is to remove all observations with missing data from the dataset, which is what `geom_histogram()` and `mean()` do by default. We could do that before we split the data like so:
+Another way is to remove all observations with missing data from the dataset, which is what `geom_histogram()` and `mean(na.rm=TRUE)` do by default. We could do that before we split the data like so:
 
 ```{r}
+#drop all NAs observations from the dataset
 airquality_droprow <- airquality %>% drop_na()
 ```
 
