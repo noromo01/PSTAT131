@@ -1,0 +1,35 @@
+---
+title: "readInData"
+author: "Noah Moyer"
+date: "2023-01-27"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(here)
+library(rio)
+library(readxl)
+```
+
+```{r}
+#read in all file names
+filenames <- list.files("Project/AllRaceResults", pattern="*.xlsx", full.names=TRUE)
+
+ldf <- lapply(filenames, read_excel)
+res <- lapply(ldf, summary)
+names(res) <- substr(filenames, 6,30)
+````
+
+
+```{r}
+race_profile <- read.csv(here("Project", "RaceProfile.csv"))
+UAEStage1 <- read.csv(here("Project", "UAEstage1.csv"))
+UAEStage1$RaceName <- "UAEstage1"
+total <- merge(race_profile, UAEStage1, by.x="RaceName")
+```
+
+https://stackoverflow.com/questions/9564489/read-all-files-in-a-folder-and-apply-a-function-to-each-data-frame
