@@ -11,25 +11,29 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r}
 library(here)
-library(rio)
 library(readxl)
+library(dplyr) #for pipe function
 ```
 
 ```{r}
-#read in all file names
-filenames <- list.files("Project/AllRaceResults", pattern="*.xlsx", full.names=TRUE)
+Omloop <- read_excel(here("Project", "AllRaceResults", "2_Omloop.xlsx"))
+Omloop$raceName <- "Omloop"
+Strade <- read_excel(here("Project", "AllRaceResults", "3_strade.xlsx"))
+Strade$raceName <- "Strade"
 
-ldf <- lapply(filenames, read_excel)
-res <- lapply(ldf, summary)
-names(res) <- substr(filenames, 6,30)
-````
+#use this to combine datasets
+total <- rbind(Omloop, Strade)
 
+#just to filter out the first couple of rows
+test <- Omloop %>% filter(row_number() %in% c(1:10))
 
-```{r}
-race_profile <- read.csv(here("Project", "RaceProfile.csv"))
-UAEStage1 <- read.csv(here("Project", "UAEstage1.csv"))
-UAEStage1$RaceName <- "UAEstage1"
-total <- merge(race_profile, UAEStage1, by.x="RaceName")
+#just to select the column we need for race results dataset
+test2 <- select(test, Rnk, Rider, raceName)
+testRider <- read_excel(here("Project", "testRiderProfile.xlsx"))
+
+#general process here
+test3 <- merge(testRider, test2, by.x="RiderName", by.y="Rider")
+testRace <- read.csv(here("Project", "RaceProfile.csv"))
+testRace2<-testRace %>% filter(RaceName=="Omloop")
+test4 <- merge(test3, testRace2, by.x="raceName", by.y="RaceName")
 ```
-
-https://stackoverflow.com/questions/9564489/read-all-files-in-a-folder-and-apply-a-function-to-each-data-frame
