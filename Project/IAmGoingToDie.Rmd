@@ -608,7 +608,7 @@ riderProfile <- read_excel(here("Project", "RiderProfile.xlsx"))
 riderPlusRaceResults <- merge(riderProfile, raceResults, by.x="RiderName", by.y="Rider", all=TRUE)
 
 #read in the race profile excel sheet
-raceProfile <- read.csv(here("Project", "RaceProfile.csv"))
+raceProfile <- read_excel(here("Project", "RaceProfile.xlsx"))
 
 #merge the previously merged df and the raceProfile df
 bikingDF <- merge(riderPlusRaceResults, raceProfile, by.x="raceName", by.y="RaceName")
