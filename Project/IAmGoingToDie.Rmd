@@ -12,6 +12,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 library(here)
 library(readxl)
+library(writexl)
 library(dplyr) #for pipe function
 ```
 
@@ -608,11 +609,11 @@ riderProfile <- read_excel(here("Project", "RiderProfile.xlsx"))
 riderPlusRaceResults <- merge(riderProfile, raceResults, by.x="RiderName", by.y="Rider", all=TRUE)
 
 #read in the race profile excel sheet
-raceProfile <- read_excel(here("Project", "RaceProfile.xlsx"))
+raceProfile <- read_excel(here("Project", "raceProfile.xlsx"))
 
 #merge the previously merged df and the raceProfile df
 bikingDF <- merge(riderPlusRaceResults, raceProfile, by.x="raceName", by.y="RaceName")
 
 #export the DF for investigation
-write.csv(bikingDF, here("Project", "bikingDF.csv"))
+write_xlsx(bikingDF, here("Project", "bikingDF.xlsx"))
 ```
