@@ -1,0 +1,116 @@
+---
+title: "Homework_2"
+author: "Noah Moyer"
+date: "2023-01-29"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+### Read in required packages
+```{r}
+library(tidyverse)
+library(tidymodels)
+library(ggplot2)
+library(kableExtra)
+library(here)
+library(kknn)
+tidymodels_prefer()
+```
+
+### Read in the dataset
+```{r}
+
+abalone <- read.csv(here("Homework", "Homework2", "data", "abalone.csv"))
+
+```
+
+## Question 1
+```{r}
+#create a new column called age based on the number of rings plus 1.5
+abalone$age <- abalone$rings + 1.5
+
+#make a histogram to describe the distribution of the age variable
+ggplot(abalone, aes(x=age)) +
+  geom_histogram(color="black", fill="grey") +
+  labs(title="Age of Abalone Animal", x="Age", y="Count")
+
+#make a boxplot
+ggplot(abalone, aes(x=age)) +
+  geom_boxplot() +
+  labs(title="Age of Abalone Animal", x="Age")
+  
+
+```
+
+Thus, the distribution of the age of abalones is approximately normal with a fairly strong right skew. A boxplot reveals that there are a number of outliers on both ends of the boxplot but most abalones are concentrated around the 9-14 age.
+
+## Question 2
+```{r}
+#set seed so we get reproducible results
+set.seed(1246)
+
+#split the data set into a training and a testing set
+abaloneSplit <- initial_split(abalone, prop=0.8, strata=age)
+
+#training set
+abaloneTraining <- training(abaloneSplit)
+
+#testing set
+abaloneTesting <- testing(abaloneSplit)
+```
+
+## Question 3
+```{r}
+#create a recipe with all predictors
+abaloneRecipe <- recipe(age ~ . , data=abaloneTraining)
+
+#remove rings predictor and add some interaction terms
+abaloneRecipeFinal <- abaloneRecipe %>% 
+  step_interact(terms = ~ type:shucked_weight + longest_shell:diameter + shucked_weight:shell_weight) %>% 
+  step_rm(rings) %>% 
+  step_center() %>% 
+  step_scale()
+```
+
+We must remove rings because if rings is included the algorithm will just use rings to predict age since age has direct linear correlation to the number of rings.
+
+### Question 4
+```{r}
+#bake the data
+prep(abaloneRecipeFinal) %>% 
+  bake(new_data=abaloneTraining) %>% 
+  head() %>% 
+  kable() %>% 
+  kable_styling(full_width=FALSE) %>% 
+  scroll_box(width="100%", height="200px")
+
+#create an linear model
+lmAbalone <- linear_reg() %>% 
+  set_engine("lm")
+```
+
+### Question 5
+```{r}
+#create a k nearest neighbors model
+knnAbalone <- nearest_neighbor(neighbors=7) %>% 
+  set_engine("kknn") %>% 
+  set_mode("regression")
+```
+
+### Question 6
+```{r}
+#create a workflow for linear model
+lmWorkflowAbalone <- workflow() %>% 
+  add_model(lmAbalone)  %>% 
+  add_recipe(abaloneRecipeFinal)
+
+#create a workflow for the knn model
+knnWorkflowAbalone <- workflow() %>% 
+  add_model(knnAbalone) %>% 
+  add_recipe(abaloneRecipeFinal)
+
+```
