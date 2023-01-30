@@ -607,7 +607,7 @@ display: none;
 ## ✖ dplyr::lag()      masks stats::lag()
 ## ✖ yardstick::spec() masks readr::spec()
 ## ✖ recipes::step()   masks stats::step()
-## • Use tidymodels_prefer() to resolve common conflicts.</code></pre>
+## • Learn how to get started at https://www.tidymodels.org/start/</code></pre>
 <pre class="r"><code>library(ggplot2)
 library(kableExtra)</code></pre>
 <pre><code>## 
@@ -667,9 +667,10 @@ abaloneRecipe &lt;- recipe(age ~ . , data=abaloneTraining)
 
 #remove rings predictor and add some interaction terms
 abaloneRecipeFinal &lt;- abaloneRecipe %&gt;% 
-  step_interact(terms = ~ type:shucked_weight + longest_shell:diameter + shucked_weight:shell_weight) %&gt;% 
-  step_rm(rings) %&gt;% 
-  step_center() %&gt;% 
+    step_dummy(all_nominal_predictors()) %&gt;% 
+  step_interact(terms=~shucked_weight:starts_with(&quot;type&quot;)+longest_shell:diameter+shucked_weight:shell_weight)  %&gt;% 
+  step_rm(rings) %&gt;%
+  step_center() %&gt;%
   step_scale()</code></pre>
 <p>We must remove rings because if rings is included the algorithm will
 just use rings to predict age since age has direct linear correlation to
@@ -687,9 +688,6 @@ prep(abaloneRecipeFinal) %&gt;%
 <table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
 <thead>
 <tr>
-<th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;">
-type
-</th>
 <th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;">
 longest_shell
 </th>
@@ -715,10 +713,16 @@ shell_weight
 age
 </th>
 <th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;">
-typeI_x_shucked_weight
+type_I
 </th>
 <th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;">
-typeM_x_shucked_weight
+type_M
+</th>
+<th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;">
+shucked_weight_x_type_I
+</th>
+<th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;">
+shucked_weight_x_type_M
 </th>
 <th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;">
 longest_shell_x_diameter
@@ -730,9 +734,6 @@ shucked_weight_x_shell_weight
 </thead>
 <tbody>
 <tr>
-<td style="text-align:left;">
-M
-</td>
 <td style="text-align:right;">
 0.350
 </td>
@@ -758,6 +759,12 @@ M
 8.5
 </td>
 <td style="text-align:right;">
+0
+</td>
+<td style="text-align:right;">
+1
+</td>
+<td style="text-align:right;">
 0.0000
 </td>
 <td style="text-align:right;">
@@ -771,9 +778,6 @@ M
 </td>
 </tr>
 <tr>
-<td style="text-align:left;">
-I
-</td>
 <td style="text-align:right;">
 0.330
 </td>
@@ -799,6 +803,12 @@ I
 8.5
 </td>
 <td style="text-align:right;">
+1
+</td>
+<td style="text-align:right;">
+0
+</td>
+<td style="text-align:right;">
 0.0895
 </td>
 <td style="text-align:right;">
@@ -812,9 +822,6 @@ I
 </td>
 </tr>
 <tr>
-<td style="text-align:left;">
-I
-</td>
 <td style="text-align:right;">
 0.355
 </td>
@@ -840,6 +847,12 @@ I
 8.5
 </td>
 <td style="text-align:right;">
+1
+</td>
+<td style="text-align:right;">
+0
+</td>
+<td style="text-align:right;">
 0.0950
 </td>
 <td style="text-align:right;">
@@ -853,9 +866,6 @@ I
 </td>
 </tr>
 <tr>
-<td style="text-align:left;">
-M
-</td>
 <td style="text-align:right;">
 0.365
 </td>
@@ -881,6 +891,12 @@ M
 8.5
 </td>
 <td style="text-align:right;">
+0
+</td>
+<td style="text-align:right;">
+1
+</td>
+<td style="text-align:right;">
 0.0000
 </td>
 <td style="text-align:right;">
@@ -894,9 +910,6 @@ M
 </td>
 </tr>
 <tr>
-<td style="text-align:left;">
-M
-</td>
 <td style="text-align:right;">
 0.465
 </td>
@@ -922,6 +935,12 @@ M
 9.5
 </td>
 <td style="text-align:right;">
+0
+</td>
+<td style="text-align:right;">
+1
+</td>
+<td style="text-align:right;">
 0.0000
 </td>
 <td style="text-align:right;">
@@ -935,9 +954,6 @@ M
 </td>
 </tr>
 <tr>
-<td style="text-align:left;">
-F
-</td>
 <td style="text-align:right;">
 0.450
 </td>
@@ -961,6 +977,12 @@ F
 </td>
 <td style="text-align:right;">
 9.5
+</td>
+<td style="text-align:right;">
+0
+</td>
+<td style="text-align:right;">
+0
 </td>
 <td style="text-align:right;">
 0.0000
@@ -999,8 +1021,71 @@ lmWorkflowAbalone &lt;- workflow() %&gt;%
 #create a workflow for the knn model
 knnWorkflowAbalone &lt;- workflow() %&gt;% 
   add_model(knnAbalone) %&gt;% 
-  add_recipe(abaloneRecipeFinal)</code></pre>
+  add_recipe(abaloneRecipeFinal)
+
+#fit lm model to the training set
+lmFitAbalone &lt;- fit(lmWorkflowAbalone, abaloneTraining)
+
+#fit knn model to the training set
+knnFitAbalone &lt;- fit(knnWorkflowAbalone, abaloneTraining)</code></pre>
 </div>
+</div>
+<div id="question-7" class="section level2">
+<h2>Question 7</h2>
+<pre class="r"><code>#insert the new data, note that rings is required but does not influence the results
+newDataTest &lt;- data.frame(type=c(&quot;F&quot;),  longest_shell=c(0.5),  diameter=c(0.1),  height=c(.3),   whole_weight=c(4), shucked_weight=c(1),  viscera_weight=c(2),  shell_weight=c(1), rings=c(3))
+
+#return the predicted value of newDataTest
+predict(lmFitAbalone, new_data=newDataTest)</code></pre>
+<pre><code>## # A tibble: 1 × 1
+##   .pred
+##   &lt;dbl&gt;
+## 1  24.1</code></pre>
+</div>
+<div id="question-8" class="section level2">
+<h2>Question 8</h2>
+<pre class="r"><code>library(yardstick)
+
+#create a metric set
+testingMetrics &lt;- metric_set(rsq, rmse, mae)
+
+#apply the testing data to the algorithm
+testingOutcomeLm &lt;- predict(lmFitAbalone, new_data=abaloneTesting %&gt;% select(-age))
+testingOutcomeKNN &lt;- predict(knnFitAbalone, new_data=abaloneTesting %&gt;% select(-age))
+
+#attach it to our testing data
+abaloneTestingResLm &lt;- bind_cols(testingOutcomeLm, abaloneTesting %&gt;% select(age))
+abaloneTestingResKNN &lt;- bind_cols(testingOutcomeKNN, abaloneTesting %&gt;% select(age))
+
+#apply the testing matrix
+testingMetrics(abaloneTestingResLm, truth=age, estimate=.pred)</code></pre>
+<pre><code>## # A tibble: 3 × 3
+##   .metric .estimator .estimate
+##   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+## 1 rsq     standard       0.563
+## 2 rmse    standard       2.10 
+## 3 mae     standard       1.52</code></pre>
+<pre class="r"><code>testingMetrics(abaloneTestingResKNN, truth=age, estimate=.pred)</code></pre>
+<pre><code>## # A tibble: 3 × 3
+##   .metric .estimator .estimate
+##   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+## 1 rsq     standard       0.470
+## 2 rmse    standard       2.32 
+## 3 mae     standard       1.63</code></pre>
+<p>The r-squared value for the linear model is fairly low. 0.56 shows
+some correlation but not a whole lot. So the model is making some
+positive progress but is not entirely impressive. The r-squared value
+for the K-nearest neighbors is slightly lower. This means that K-nearest
+neighbors is a slightly worse model.</p>
+</div>
+<div id="question-9" class="section level2">
+<h2>Question 9</h2>
+<p>The linear model performed better. This is because I think we may
+have overfit the data with the KNN model. The KNN value was fairly high
+which can lead to overfitting. I am surprised by how low the r-squared
+value is for both datasets. I’d think it would be fairly easy to predict
+age based on factors like weight but apparently this is not so. Perhaps
+even the linear model is too simple of a model.</p>
 </div>
 
 

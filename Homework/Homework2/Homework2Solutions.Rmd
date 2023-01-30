@@ -70,9 +70,10 @@ abaloneRecipe <- recipe(age ~ . , data=abaloneTraining)
 
 #remove rings predictor and add some interaction terms
 abaloneRecipeFinal <- abaloneRecipe %>% 
-  step_interact(terms = ~ type:shucked_weight + longest_shell:diameter + shucked_weight:shell_weight) %>% 
-  step_rm(rings) %>% 
-  step_center() %>% 
+    step_dummy(all_nominal_predictors()) %>% 
+  step_interact(terms=~shucked_weight:starts_with("type")+longest_shell:diameter+shucked_weight:shell_weight)  %>% 
+  step_rm(rings) %>%
+  step_center() %>%
   step_scale()
 ```
 
@@ -113,4 +114,45 @@ knnWorkflowAbalone <- workflow() %>%
   add_model(knnAbalone) %>% 
   add_recipe(abaloneRecipeFinal)
 
+#fit lm model to the training set
+lmFitAbalone <- fit(lmWorkflowAbalone, abaloneTraining)
+
+#fit knn model to the training set
+knnFitAbalone <- fit(knnWorkflowAbalone, abaloneTraining)
 ```
+
+
+## Question 7
+```{r}
+#insert the new data, note that rings is required but does not influence the results
+newDataTest <- data.frame(type=c("F"),  longest_shell=c(0.5),  diameter=c(0.1),  height=c(.3),   whole_weight=c(4), shucked_weight=c(1),  viscera_weight=c(2),  shell_weight=c(1), rings=c(3))
+
+#return the predicted value of newDataTest
+predict(lmFitAbalone, new_data=newDataTest)
+
+```
+
+## Question 8
+```{r}
+library(yardstick)
+
+#create a metric set
+testingMetrics <- metric_set(rsq, rmse, mae)
+
+#apply the testing data to the algorithm
+testingOutcomeLm <- predict(lmFitAbalone, new_data=abaloneTesting %>% select(-age))
+testingOutcomeKNN <- predict(knnFitAbalone, new_data=abaloneTesting %>% select(-age))
+
+#attach it to our testing data
+abaloneTestingResLm <- bind_cols(testingOutcomeLm, abaloneTesting %>% select(age))
+abaloneTestingResKNN <- bind_cols(testingOutcomeKNN, abaloneTesting %>% select(age))
+
+#apply the testing matrix
+testingMetrics(abaloneTestingResLm, truth=age, estimate=.pred)
+testingMetrics(abaloneTestingResKNN, truth=age, estimate=.pred)
+```
+
+The r-squared value for the linear model is fairly low. 0.56 shows some correlation but not a whole lot. So the model is making some positive progress but is not entirely impressive. The r-squared value for the K-nearest neighbors is slightly lower. This means that K-nearest neighbors is a slightly worse model.
+
+## Question 9
+The linear model performed better. This is because I think we may have overfit the data with the KNN model. The KNN value was fairly high which can lead to overfitting. I am surprised by how low the r-squared value is for both datasets. I'd think it would be fairly easy to predict age based on factors like weight but apparently this is not so. Perhaps even the linear model is too simple of a model.
