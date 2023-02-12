@@ -1,0 +1,92 @@
+---
+title: "homework3solutions"
+author: "Noah Moyer"
+date: "2023-02-12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#read in the required packages
+library(tidyverse)
+library(tidymodels)
+library(ggplot2)
+library(kableExtra)
+library(here)
+library(kknn)
+library(naniar)
+library(corrplot)
+library(corrr)
+tidymodels_prefer()
+```
+
+```{r}
+#read in the dataset
+titanic <- read.csv(here("Homework", "Homework3", "data", "titanic.csv"))
+
+#investigate the data
+head(titanic)
+dim(titanic)
+
+#change variables survived and pclass to factors
+titanic$survived <- factor(titanic$survived, levels=c("Yes", "No")) #levels is used to order yes before no
+titanic$pclass <- factor(titanic$pclass)
+
+```
+
+### Question 1
+```{r}
+#dealing with missingness, first lets look at how much data is missing
+vis_miss(titanic)
+```
+I am not worried about cabin number missing, this will not be important in our predicts, I will remove that variable. Age I am concerned about because age should be a very important predictor of who lived and who died. Since I don't want to lose 20% of our dataset I will use linear imputation in order to replace those values. That will be implemented below.
+
+I will deal with age after I split the data when I am creating the recipe. I will deal with cabin by simply not including it in my recipe.
+
+```{r}
+#set the seed
+set.seed(2001)
+
+#split up the titanic data into testing and training data
+titanic_split <- initial_split(titanic, strata=survived, prop=0.7)
+titanic_train <- training(titanic_split)
+titanic_test <- testing(titanic_split)
+
+```
+It is important to use stratisfied sampling so that we do not overfit our model. By having a testing set that we do not fit the data to we can test our model on something that the algorithm has not been specifically fitted for allowing us to understand bias in our dataset.
+
+### Question 2
+```{r}
+value <- abs(rnorm(623,0,15))
+
+#create the sex bar chart
+ggplot(titanic_train, aes(fill=sex, y=value, x=survived)) +
+  geom_bar(position="fill", stat="identity")
+
+#create the pclass bar chart
+ggplot(titanic_train, aes(fill=pclass, y=value, x=survived)) +
+  geom_bar(position="fill", stat="identity")
+
+```
+
+Based on both of these charts I believe that pclass and gender will be an excellent predictor of survival. A percentage stacked bar chart is more useful than a traditional stacked bar chart because a percentage stacked bar chart scales for how big the survived groups are. Thus, while more people died on the titanic than survived, this bar chart scales that detail.
+
+### Question 3
+```{r}
+only_numeric_titanic <- select(titanic_train, -passenger_id, -survived, -name, -sex, -ticket, -cabin, -embarked, -pclass)
+only_numeric_titanic %>% 
+  cor() %>% 
+  corrplot()
+```
+The major correlation I see here is that number of parents/kids seems to be strongly correlated to number of siblings. Otherwise, there seems to be no major correlations.
+
+### Question 4
+```{r}
+titanic_recipe <- recipe(survived ~ pclass + sex + age + sib_sp + parch + fare + embarked, titanic_train) %>% 
+  step_impute_linear(age, impute_with = imp_vars(pclass, sex, sib_sp, parch, fare, embarked)) %>% 
+  step_dummy(all_nominal_predictors())
+
+```
