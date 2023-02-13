@@ -20,6 +20,7 @@ library(kknn)
 library(naniar)
 library(corrplot)
 library(corrr)
+library(discrim)
 tidymodels_prefer()
 ```
 
@@ -42,6 +43,7 @@ titanic$pclass <- factor(titanic$pclass)
 #dealing with missingness, first lets look at how much data is missing
 vis_miss(titanic)
 ```
+  
 I am not worried about cabin number missing, this will not be important in our predicts, I will remove that variable. Age I am concerned about because age should be a very important predictor of who lived and who died. Since I don't want to lose 20% of our dataset I will use linear imputation in order to replace those values. That will be implemented below.
 
 I will deal with age after I split the data when I am creating the recipe. I will deal with cabin by simply not including it in my recipe.
@@ -81,12 +83,156 @@ only_numeric_titanic %>%
   cor() %>% 
   corrplot()
 ```
+   
+   
 The major correlation I see here is that number of parents/kids seems to be strongly correlated to number of siblings. Otherwise, there seems to be no major correlations.
 
 ### Question 4
 ```{r}
-titanic_recipe <- recipe(survived ~ pclass + sex + age + sib_sp + parch + fare + embarked, titanic_train) %>% 
-  step_impute_linear(age, impute_with = imp_vars(pclass, sex, sib_sp, parch, fare, embarked)) %>% 
-  step_dummy(all_nominal_predictors())
+#create the recipe (note that this is where we impute age)
+titanic_recipe <- recipe(survived ~ pclass + sex + age + sib_sp + parch + fare, titanic_train) %>% 
+  step_impute_linear(age, impute_with = imp_vars(pclass, sex, sib_sp, parch, fare)) %>% 
+  step_dummy(all_nominal_predictors()) %>% 
+  step_interact(~starts_with("sex"):age + age:fare)
 
 ```
+
+
+### Question 5
+```{r}
+#specifying the engine
+log_reg <- logistic_reg() %>% 
+  set_engine("glm") %>% 
+  set_mode("classification")
+
+#setting up the workflow
+titanic_log_wkflow <- workflow() %>% 
+  add_model(log_reg) %>% 
+  add_recipe(titanic_recipe)
+
+#fit model
+titanic_log_fit <- fit(titanic_log_wkflow, titanic_train)
+```
+### Question 6
+```{r}
+#specifying the engine
+lda_mod <- discrim_linear() %>% 
+  set_mode("classification") %>% 
+  set_engine("MASS")
+
+#setting up the workflow
+titanic_LDA_wkflow <- workflow() %>% 
+  add_model(lda_mod) %>% 
+  add_recipe(titanic_recipe)
+
+#fit model
+titanic_LDA_fit <- fit(titanic_LDA_wkflow, titanic_train)
+```
+### Question 7
+```{r}
+#specify the engine
+quad_discrim <- discrim_quad() %>% 
+  set_mode("classification") %>% 
+  set_engine("MASS")
+
+#setting up the workflow
+titanic_quad_discrim_wkflow <- workflow() %>% 
+  add_model(quad_discrim) %>% 
+  add_recipe(titanic_recipe)
+
+#fit model
+titanic_quad_fit <- fit(titanic_quad_discrim_wkflow, titanic_train)
+
+```
+
+### Question 8
+```{r}
+#specify the engine
+knn_mod <- nearest_neighbor(neighbors=4) %>% 
+  set_mode("classification") %>% 
+  set_engine("kknn")
+
+#setting up the workflow
+titanic_knn_wrkflow <- workflow() %>% 
+  add_model(knn_mod) %>% 
+  add_recipe(titanic_recipe)
+
+#fit model
+titanic_knn_fit <- fit(titanic_knn_wrkflow, titanic_train)
+```
+
+### Question 9
+```{r}
+#fit the model to our testing data
+test_titanic_log_fit <- fit(titanic_log_fit, titanic_test)
+
+#set up the ROC curve
+titanic_log_augment <- augment(test_titanic_log_fit, new_data=titanic_test)
+
+#predict values for titanic
+titanic_log_predict <- predict(test_titanic_log_fit, titanic_test %>% select(-survived))
+
+#bind the predicted values with the testing dataset
+titanic_log_bind <- bind_cols(titanic_log_predict, titanic_test %>%  select(survived))
+
+#repeat for linear discriminate analysis
+test_titanic_LDA_fit <- fit(titanic_LDA_fit, titanic_test)
+titanic_LDA_augment <- augment(test_titanic_LDA_fit, new_data=titanic_test)
+titanic_LDA_predict <- predict(test_titanic_LDA_fit, titanic_test %>% select(-survived))
+titanic_LDA_bind <- bind_cols(titanic_LDA_predict, titanic_test %>%  select(survived))
+
+#repeat for quadratic discriminate analysis
+test_titanic_quad_fit <- fit(titanic_quad_fit, titanic_test)
+titanic_quad_augment <- augment(test_titanic_quad_fit, new_data=titanic_test)
+titanic_quad_predict <- predict(test_titanic_quad_fit, titanic_test %>% select(-survived))
+titanic_quad_bind <- bind_cols(titanic_quad_predict, titanic_test %>% select(survived))
+
+#repeat for k nearest neighbors
+test_titanic_knn_fit <- fit(titanic_knn_fit, titanic_test)
+titanic_knn_augment <- augment(test_titanic_knn_fit, new_data=titanic_test)
+titanic_knn_predict <- predict(test_titanic_knn_fit, titanic_test %>% select(-survived))
+titanic_knn_bind <- bind_cols(titanic_knn_predict, titanic_test %>% select(survived))
+
+#area under curve for ROC for log
+titanic_log_augment %>% 
+  roc_auc(survived, .pred_Yes)
+
+#area under curve for ROC for linear discriminate analysis
+titanic_LDA_augment %>% 
+  roc_auc(survived, .pred_Yes)
+
+#area under curve for ROC for quadratic discriminate analysis
+titanic_quad_augment %>% 
+  roc_auc(survived, .pred_Yes)
+
+#area under curve for k-nearest neighbors
+titanic_knn_augment %>% 
+  roc_auc(survived, .pred_Yes)
+```
+
+### Question 10
+The AUC for the logistic regression is 0.8421. The AUC for the linear discriminant analysis is 0.8328. The AUC for the quadratic discriminant analysis is 0.8324. The AUC for the k-nearest neighbors model is 0.9961. Therefore the best performing model by far is the KNN model. It should be noted that all models did perform well.
+
+```{r}
+#create the confusion matrix
+titanic_knn_augment %>% 
+  conf_mat(truth=survived, estimate=.pred_class) %>% 
+  autoplot(type='heatmap')
+
+#create the ROC curve
+titanic_knn_augment %>% 
+  roc_curve(survived, .pred_Yes) %>% 
+  autoplot()
+```
+   
+   
+According to this, the KNN model performed extremely well. I am very impressed.
+```{r}
+#set up the ROC
+titanic_knn_augment_train <- augment(titanic_knn_fit, new_data=titanic_train)
+
+#find AUC
+titanic_knn_augment_train  %>% 
+  roc_auc(survived, .pred_Yes)
+```
+The training model has an extremely high KNN value of 0.9954. The values are basically the same but the AUC is actually higher for the testing data. This is interesting and shows that the KNN model did not overfit. There should be low bias in this model.
