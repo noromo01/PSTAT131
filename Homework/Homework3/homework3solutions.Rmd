@@ -78,10 +78,11 @@ Based on both of these charts I believe that pclass and gender will be an excell
 
 ### Question 3
 ```{r}
-only_numeric_titanic <- select(titanic_train, -passenger_id, -survived, -name, -sex, -ticket, -cabin, -embarked, -pclass)
-only_numeric_titanic %>% 
-  cor() %>% 
-  corrplot()
+only_numeric_titanic <- select(titanic_train, -passenger_id, -name, -ticket, -cabin)
+only_numeric_titanic %>%
+  select(is.numeric) %>% 
+  cor(use="pairwise.complete.obs") %>% 
+  corrplot(type="lower", diag=FALSE)
 ```
    
    

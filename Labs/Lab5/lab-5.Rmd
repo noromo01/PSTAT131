@@ -118,7 +118,7 @@ hitters_recipe <- recipe(salary ~ . , data = hitters_train) %>%
   step_pca(hits, hm_run, runs, rbi, walks, 
            num_comp = 1, prefix = "first_pc") %>% 
   step_pca(years, c_hits, c_runs, crbi, c_walks, c_at_bat,
-           num_comp = 1, prefix = "second_pc")
+           num_comp = 1, prefix = "second_pc") #removes colinearity problems, removes group that have high level of colinearity from cor plot above
 
 prep(hitters_recipe) %>% bake(new_data = hitters_train)
 ```
@@ -160,7 +160,7 @@ We'll handle this collinearity by simply excluding one of each of these variable
 set.seed(3435)
 mlc_churn <- mlc_churn %>% 
   select(-c(total_day_charge, total_eve_charge, total_night_charge,
-            total_intl_charge))
+            total_intl_charge)) #b/c high correlation
 mlc_split <- initial_split(mlc_churn, strata = "churn", prop = 0.75)
 
 mlc_train <- training(mlc_split)
@@ -428,7 +428,7 @@ best_en_churn <- select_by_one_std_err(tune_res_churn,
 best_en_churn
 ```
 
-For the customer churn data, the best hyperparameter combination actually also uses penalty and mixture values of 0, which is essentially a logistic regression.
+For the customer churn data, the best hyperparameter combination actually also uses 0 penalty and mixture values of 0, which is essentially a logistic regression.
 
 #### Activities
 
