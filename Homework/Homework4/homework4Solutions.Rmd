@@ -18,6 +18,7 @@ library(ISLR2)
 library(tidyverse)
 library(ggthemes)
 library(here)
+library(themis)
 tidymodels_prefer()
 
 #read in the datasets
@@ -83,6 +84,7 @@ knn_mod_tune <- nearest_neighbor(neighbors=tune()) %>%
 
 #setting up the model for the linear regression
 lin_regress <- linear_reg() %>% 
+  set_mode("regression") %>% 
   set_engine("lm")
 
 #setting up the model for elastic net linear regression
@@ -105,6 +107,178 @@ lin_regress_workflow <- workflow() %>%
 elastic_net_linear_workflow <- workflow() %>% 
   add_model(elastic_net_linear) %>% 
   add_recipe(abaloneRecipeFinal)
+
+#set up the tuning for KNN
+knn_grid <- grid_regular(neighbors(range=c(1,10)), levels=10)
+
+#set up tuning for elastic net linear regression
+ENL_grid <- grid_regular(penalty(), mixture(range=c(0,1)), levels=10)
+
+#check the compisition of each grids
+knn_grid
+ENL_grid
 ```
 
+Since we are doing k-folds with 5 folds, each specific model will be tested 5 times. We set up 10 models for knn and 100 models for elastic net linear regression. That, plus the one model of just the plain linear regression means that we have 111 models to test. Thus, $111*5=555$ so we have 555 models to fit and test.
 
+### Question 4
+```{r}
+#fit the KNN model
+knn_fit <- tune_grid(
+  object=knn_workflow,
+  resamples=abaloneFolds,
+  grid=knn_grid,
+  control=control_grid(verbose=TRUE)
+)
+
+#fit the linear model
+lin_fit <- fit_resamples(
+  object=lin_regress_workflow,
+  resamples=abaloneFolds
+)
+
+#fit the ENL model
+ENL_fit <- tune_grid(
+  object=elastic_net_linear_workflow,
+  resamples=abaloneFolds,
+  grid=ENL_grid,
+  control=control_grid(verbose=TRUE)
+)
+```
+
+### Question 5
+```{r}
+#see how the KNN model did
+knn_model <- subset(collect_metrics(knn_fit), .metric=="rmse")
+knn_model[order(knn_model$mean),]
+autoplot(knn_fit)
+
+#see how the linear model did
+subset(collect_metrics(lin_fit), .metric=="rmse")
+
+#see how the ENL model did
+ENL_mod <- subset(collect_metrics(ENL_fit), .metric=="rmse")
+ENL_mod[order(ENL_mod$mean),]
+autoplot(ENL_fit)
+
+
+```
+
+Out of the KNN model, the model with 10 nearest neighbors performed the best with an RMSE of 2.279997. The linear model had an RMSE of 2.206268, outperforming the best KNN model. The best elastic net linear regression model had an RMSE 2.206262. There were a series of models with this RMSE and they all had a mixture of 2/9 Lasso Regression. Their penalty term was 4.64e-04 and lower. While the elastic net linear regression model has a lower RMSE than the linear model, the difference is so small that I believe the more simple model is better suited. Thus, the linear model was the model that performed the best.
+
+### Question 6
+```{r}
+#fit entire training set to the linear model
+final_fit <- fit(lin_regress_workflow, abaloneTraining)
+
+#find rmse
+augment(final_fit, new_data=abaloneTesting) %>% 
+  rmse(truth=age, estimate=.pred)
+```
+We got an RMSE of 2.1166 on  the testing model. This is a lot lower than the RMSE that we got on any of our models in the CV. The average RMSE from the CV of the linear model was 2.2063, significantly lower than this as well. The model performed extremely well!
+
+## Section 2: Classification (Titanic Survival)
+### Question 7
+```{r}
+set.seed(2523)
+
+#split up titanic
+titanic_split <- initial_split(titanic, strata=survived, prop=0.7)
+titanic_train <- training(titanic_split)
+titanic_test <- testing(titanic_split)
+
+#create a 5-fold CV set
+titanic_folds <- vfold_cv(titanic_train, v=5)
+```
+
+### Question 8
+```{r}
+#create the recipe
+titanic_recipe <- recipe(survived ~ pclass + sex + age + sib_sp + parch + fare, titanic_train) %>% 
+  step_impute_linear(age, impute_with = imp_vars(pclass, sex, sib_sp, parch, fare)) %>% 
+  step_dummy(all_nominal_predictors()) %>% 
+  step_interact(~starts_with("sex"):age + age:fare) %>% 
+  step_upsample(survived, over_ratio=1)
+```
+
+### Question 9
+```{r}
+#setting up the model for KNN
+knn_mod_class <- nearest_neighbor(neighbors=tune()) %>% 
+  set_mode("classification") %>% 
+  set_engine("kknn")
+
+#setting up the model for logistic regression
+log_reg_class <- logistic_reg() %>% 
+  set_mode("classification") %>% 
+  set_engine("glm")
+
+#setting up the model for elastic net logistic regression
+ENLog_class <- logistic_reg(mixture=tune(),
+                            penalty=tune()) %>% 
+  set_mode("classification") %>% 
+  set_engine("glmnet")
+
+#setting up workflow for KNN
+knn_work_titan <- workflow() %>% 
+  add_model(knn_mod_class) %>% 
+  add_recipe(titanic_recipe)
+
+#setting up workflow for logistic regression
+log_work_titan <- workflow() %>% 
+  add_model(log_reg_class) %>% 
+  add_recipe(titanic_recipe)
+
+#setting up workflow for ENLog
+ENLog_work_titan <- workflow() %>% 
+  add_model(ENLog_class) %>% 
+  add_recipe(titanic_recipe)
+
+#will use same grids as before
+knn_grid
+ENL_grid
+```
+
+### Question 10
+```{r}
+#fit the KNN model
+knn_fit_titan <- tune_grid(
+  object=knn_work_titan,
+  resamples=titanic_folds,
+  grid=knn_grid,
+  control=control_grid(verbose=TRUE)
+)
+
+#fit the log model
+log_fit_titan <- fit_resamples(
+  object=log_work_titan,
+  resamples=titanic_folds
+)
+
+#fit the ENLog model
+ENLog_fit_titan <- tune_grid(
+  object=ENLog_work_titan,
+  resamples=titanic_folds,
+  grid=ENL_grid,
+  control=control_grid(verbose=TRUE)
+)
+```
+
+### Question 11
+```{r}
+#see how the KNN model did
+knn_model_titan <- subset(collect_metrics(knn_fit_titan), .metric=="roc_auc")
+knn_model_titan[order(knn_model_titan$mean, decreasing=TRUE),]
+autoplot(knn_fit_titan)
+
+#see how the logistic model did
+subset(collect_metrics(log_fit_titan), .metric=="roc_auc")
+
+#see how the ENLog model did
+ENLog_model_titan <- subset(collect_metrics(ENLog_fit_titan), .metric=="roc_auc")
+ENLog_model_titan[order(ENLog_model_titan$mean, decreasing=TRUE),]
+autoplot(ENLog_fit_titan)
+
+#let's see which model did the best for each fit
+select_by_one_std_err(knn_fit_titan,  desc(neighbors),  metric="roc_auc") #DOESN'T WORK, maybe I just shouldn't use
+```
