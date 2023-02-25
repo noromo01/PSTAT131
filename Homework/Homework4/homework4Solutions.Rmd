@@ -1,0 +1,110 @@
+---
+title: "Homework4Solutions"
+author: "Noah Moyer"
+date: "2023-02-25"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Getting set up
+```{r}
+#load required packages
+library(tidymodels)
+library(ISLR)
+library(ISLR2)
+library(tidyverse)
+library(ggthemes)
+library(here)
+tidymodels_prefer()
+
+#read in the datasets
+abalone <- read.csv(here("Homework", "Homework4", "data", "abalone.csv"))
+titanic <- read.csv(here("Homework", "Homework4", "data", "titanic.csv"))
+
+#change variabels to factor
+titanic$survived <- as.factor(titanic$survived)
+titanic$pclass <- as.factor(titanic$pclass)
+
+#generate age variable
+abalone$age <- abalone$rings + 1.5
+
+#getting familiar with the datasets
+str(abalone)
+str(titanic)
+```
+
+## Section 1: Regression (abalone age)
+### Question 1
+```{r}
+set.seed(6920)
+
+#split data
+abaloneSplit <- initial_split(abalone, prop=0.75, strata=age)
+
+#training set
+abaloneTraining <- training(abaloneSplit)
+
+#testing set
+abaloneTesting <- testing(abaloneSplit)
+
+#create a 5-fold cross-validation set
+abaloneFolds <- vfold_cv(abaloneTraining, v=5)
+
+#check that this worked
+abaloneFolds[[1]] %>% 
+  head()
+
+#create a recipe with all predictors
+abaloneRecipe <- recipe(age~., data=abaloneTraining)
+
+#remove rings predictor and add some interactiont erms
+abaloneRecipeFinal <- abaloneRecipe %>% 
+  step_dummy(all_nominal_predictors()) %>% 
+  step_interact(terms=~shucked_weight:starts_with("type")+longest_shell:diameter+shucked_weight:shell_weight)  %>% 
+  step_rm(rings) %>%
+  step_center() %>%
+  step_scale()
+```
+
+### Question 2
+K-fold cross validation is a way of splitting the training dataset up in order to test various models before we select a final model to be applied to the testing dataset. K-fold works by dividing the training dataset up k different ways. Each k is now an assessment dataset. For each assessment dataset, the rest of the training dataset (called the analysis dataset) is fitted to each model and then tested on the assessment dataset. When we finish k-fold cross validation we have a series of testing metrics that tell us how well each model performed on a wide variety of assessment datasets.
+If we just compared our model results on the training dataset we may overfit some of the models since we aren't testing the models on independent data. This may lead to bias.
+If we split our training set into two and used one of the two splits to evaluate our models, this would be known as validation set approach.
+
+### Question 3
+```{r}
+#setting up the model for k-nearest neighbors
+knn_mod_tune <- nearest_neighbor(neighbors=tune()) %>% 
+  set_mode("regression") %>% 
+  set_engine("kknn")
+
+#setting up the model for the linear regression
+lin_regress <- linear_reg() %>% 
+  set_engine("lm")
+
+#setting up the model for elastic net linear regression
+elastic_net_linear <- linear_reg(mixture=tune(),
+                                 penalty=tune()) %>% 
+  set_mode("regression") %>% 
+  set_engine("glmnet")
+
+#setting up workflow for knn
+knn_workflow <- workflow() %>% 
+  add_model(knn_mod_tune) %>% 
+  add_recipe(abaloneRecipeFinal)
+
+#setting up workflow for linear regression
+lin_regress_workflow <- workflow() %>% 
+  add_model(linear_reg()) %>% 
+  add_recipe(abaloneRecipeFinal)
+
+#setting up workflow for elastic net linear regression
+elastic_net_linear_workflow <- workflow() %>% 
+  add_model(elastic_net_linear) %>% 
+  add_recipe(abaloneRecipeFinal)
+```
+
+
