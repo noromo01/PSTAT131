@@ -278,7 +278,18 @@ subset(collect_metrics(log_fit_titan), .metric=="roc_auc")
 ENLog_model_titan <- subset(collect_metrics(ENLog_fit_titan), .metric=="roc_auc")
 ENLog_model_titan[order(ENLog_model_titan$mean, decreasing=TRUE),]
 autoplot(ENLog_fit_titan)
-
-#let's see which model did the best for each fit
-select_by_one_std_err(knn_fit_titan,  desc(neighbors),  metric="roc_auc") #DOESN'T WORK, maybe I just shouldn't use
 ```
+
+The model that performed the best was the logistic regression. This model has the highest ROC AUC and is also the simplist, which means less bias. Thus, I have concluded that the logistic regression is the best model.
+
+### Question 12
+```{r}
+#fit the entire training set to the logistic model
+final_fit_titan <- fit(log_work_titan, titanic_train)
+
+#find roc auc
+augment(final_fit_titan, new_data=titanic_train) %>% 
+  roc_auc(truth=survived, estimate=.pred_No)
+```
+
+My model's ROC AUC outperformed the training data's ROC AUC. This is excellent. The ROC AUC increased from 0.8522 to 0.8654. This is much higher than the ROC AUC from the KNN and somewhat higher than the ROC AUC from the elastic net logistic regression.
