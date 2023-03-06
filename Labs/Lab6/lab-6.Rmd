@@ -53,7 +53,7 @@ wage <- as_tibble(Wage) %>%
 We can check the data quickly to see if there is any missingness, but there is none, so we won't print the plot here because it doesn't really convey any information. However, feel free to uncomment the following line and run it to verify.
 
 ```{r}
-# vis_miss(wage)
+vis_miss(wage)
 ```
 
 Here is a correlation matrix of `age`, `wage`, and `year`:
