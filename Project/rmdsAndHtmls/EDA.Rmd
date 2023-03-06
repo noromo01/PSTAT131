@@ -1,0 +1,89 @@
+---
+title: "EDA"
+author: "Noah Moyer"
+date: "2023-03-06"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Packages and reading in data
+```{r}
+library(here)
+library(readxl)
+library(dplyr)
+library(ggplot2)
+```
+
+Now I will read in the overall data but also the raceProfile and riderProfile data. I am reading in both raceProfile and riderProfile because these will be easier to conduct exploratory data analysis on.
+```{r}
+#read in bikingDF
+biking <- read_excel(here("Project", "rawData", "bikingDF.xlsx"))
+
+#read in raceProfile
+raceProfile <- read_excel(here("Project", "rawData", "raceProfile.xlsx"))
+
+#read in riderProfile
+riderProfile <- read_excel(here("Project", "rawData", "RiderProfile.xlsx"))
+```
+
+### Exploring the biking dataframe
+First I am going to explore the main biking dataframe.
+```{r}
+#general exploration
+str(biking)
+
+#barplot
+ggplot(data=biking, aes(x=Rnk)) +
+  geom_histogram(binwidth=1) +
+  labs(title="Histogram of Finishing Position From Races", x="Finishing Position", y="Count")
+
+#Finishing place versus PCS ranking
+ggplot(biking, aes(x=PCSRanking, y=Rnk)) +
+  geom_point(size=1) +
+  geom_smooth(se=FALSE) +
+  labs(title="Scatter Plot of PCS Ranking versus Finishing Place in Races", x="PCS Ranking", y="Finishing Place")
+```
+  
+  
+There is something curious to note about the finishing position. I would expect the bar chart to have a smooth trend to it (ie the number of finishers in position n never exceeds the number of finishers in position n-1) but this does not appear to be the case. This may have occurred due to removing NAs or may be a data entry error. I will continue to keep an eye out for this in my coming analysis.
+I also produced a scatter plot of PCS ranking versusing finishing place. This graph shows what we would expect. As PCS Ranking, lower finishing places are achieved. It is definitely worth noting, however, that the slope of the spline varies throughout the graph. It is very steep from a PCS ranking of one through about 150. Thus, the high ranked riders win a lot more than even riders ranked slightly lower. After that, the spline smooths out, showing that PCS ranking matters less here.
+
+Now, I want to produce some graph about riders who finished in the top 10
+```{r}
+#first, I am going to create a subset of data where we only include riders who finished in the top 10 of a race
+bikingTop10 <- biking %>% 
+  filter(Rnk<=10)
+
+#now lets make a histogram of these rider's ages
+ggplot(bikingTop10, aes(x=AgeYear)) +
+  geom_histogram(binwidth=1) +
+  labs(title="Histogram of the Ages of Riders who Finished in the Top 10", x="Age", y="Count")
+
+#a histogram of teams of these riders
+ggplot(bikingTop10, aes(x=factor(PCSTeamRanking))) +
+  geom_bar(stat="count") +
+  labs(title="Bar Plot of Team Ranking that Riders are on who Finished in the Top 10", x="Team Ranking (according to PCS)", y="Count")
+```
+
+From these two graphs, we can tell that is approximately normally distributed around 28. It is interesting to note that there are not a lot of results at age 34. This is probably due to the fact that there are coincidentially few riders who are performing well at this age.
+The team ranking graph shows us what we would expect. Better ranked teams have more riders in the top 10 of races. It is interesting to note that this graph is not strictly decreasing. For example, the second ranked team has more finishes in the top 10 than the first ranked team. This shows that races aren't all determined by who finished in the top 10, it is important who won the race as well.
+
+Plot of race profile
+```{r}
+#Race speed versus Startlist quality
+ggplot(raceProfile, aes(x=StartlistQualScore, y=AvgSpeedWinner)) +
+  geom_point() +
+  geom_smooth(method=lm, se=FALSE) +
+  labs(title="Predicting Race Speed based on Startlist Quality", x="Startlist Quality", y="Speed of Race (km/hr)")
+
+ggplot(raceProfile, aes(x=factor(ParcourTypeCategorical), y=AvgSpeedWinner)) +
+  geom_boxplot() +
+  labs(title="Race Speed Across Different Types of Race", x="Type of Race", y="Race Speed (km/hr)")
+```
+
+For the scatterplot, there is a weak positive association. I would hesitate to conclude that startlist quality increases the speed of races. There may be some association with speed and startlist quality but it is a weak association.
+
+For the boxplot, race speed varies a lot by the type of race. Note, that for most race names, the first word indicates the general parcour of the race while the second word indicates how the race finished (ie HillFlat would be a hilly race that ended flat while FlatHill would be a flat race that ended with a hill).
