@@ -15,6 +15,8 @@ library(here)
 library(readxl)
 library(dplyr)
 library(ggplot2)
+library(corrr)
+library(corrplot)
 ```
 
 Now I will read in the overall data but also the raceProfile and riderProfile data. I am reading in both raceProfile and riderProfile because these will be easier to conduct exploratory data analysis on.
@@ -80,10 +82,29 @@ ggplot(raceProfile, aes(x=StartlistQualScore, y=AvgSpeedWinner)) +
   labs(title="Predicting Race Speed based on Startlist Quality", x="Startlist Quality", y="Speed of Race (km/hr)")
 
 ggplot(raceProfile, aes(x=factor(ParcourTypeCategorical), y=AvgSpeedWinner)) +
-  geom_boxplot() +
+  geom_boxplot(outlier.shape=NA) +
+  geom_jitter(alpha=0.1) +
   labs(title="Race Speed Across Different Types of Race", x="Type of Race", y="Race Speed (km/hr)")
 ```
 
 For the scatterplot, there is a weak positive association. I would hesitate to conclude that startlist quality increases the speed of races. There may be some association with speed and startlist quality but it is a weak association.
 
 For the boxplot, race speed varies a lot by the type of race. Note, that for most race names, the first word indicates the general parcour of the race while the second word indicates how the race finished (ie HillFlat would be a hilly race that ended flat while FlatHill would be a flat race that ended with a hill).
+
+### Correlation
+Let's test out correlation in our dataset.
+```{r}
+#test correlation
+cor_results <- biking %>% 
+  select(-Rnk) %>% 
+  correlate()
+
+rplot(cor_results)
+
+cor_results %>% 
+  stretch() %>% 
+  ggplot(aes(x,y,fill=r)) +
+  geom_tile() +
+  geom_text(aes(label=as.character(fashion(r)))) +
+  theme(axis.text.x=element_text(angle=-90))
+```
