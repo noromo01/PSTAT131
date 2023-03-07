@@ -1,0 +1,54 @@
+---
+title: "classificationModels"
+author: "Noah Moyer"
+date: "2023-03-07"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Packages and read in dataset
+```{r}
+library(tidymodels)
+library(ISLR)
+library(ISLR2)
+library(tidyverse)
+library(glmnet)
+library(here)
+library(readxl)
+bikeClass <- read_excel(here("Project", "rawData", "bikingClass.xlsx")) 
+```
+
+### Split data
+
+First, we need to split the data into our training and testing set
+```{r}
+#make the regressor variable (whether or not we are in the top 10) a factor
+bikeClass$Rnk <- factor(bikeClass$Rnk)
+
+#make the classification variables into factors
+bikeClass$ParcourTypeCategorical <- factor(bikeClass$ParcourTypeCategorical)
+bikeClass$WonByCategorical <- factor(bikeClass$WonByCategorical)
+
+set.seed(110)
+
+bikeSplit <- initial_split(bikeClass, strata="Rnk", prop=0.75)
+
+bikeTrain <- training(bikeSplit)
+bikeTest <- testing(bikeSplit)
+
+bikeFold <- vfold_cv(bikeTrain, v=10)
+
+```
+
+### Building the recipe
+Building the recipe for the bikeClass
+
+```{r}
+bikeRecipe <- recipe(Rnk~., data=bikeTrain) %>% 
+  step_dummy(all_nominal_predictors()) %>% 
+  step_normalize(all_predictors())
+#NEXT: decide what variables to remove based on the corr plot
+```

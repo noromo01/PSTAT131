@@ -17,6 +17,7 @@ library(dplyr)
 library(ggplot2)
 library(corrr)
 library(corrplot)
+library(writexl)
 ```
 
 Now I will read in the overall data but also the raceProfile and riderProfile data. I am reading in both raceProfile and riderProfile because these will be easier to conduct exploratory data analysis on.
@@ -122,6 +123,9 @@ bikingClass$Rnk <- ifelse(bikingClass$Rnk %in% c(1:10), "top10", "notTop10")
 ggplot(bikingClass, aes(x=factor(Rnk))) +
   geom_bar(stat="count") +
   labs(title="Count of Finishes in the Top 10 Versus not in the Top 10", x=NULL, y="Count")
+
+#export classification
+write_xlsx(bikingClass, here("Project", "rawData", "bikingClass.xlsx"))
 ```
 
 I will need to conduct some upsampling so that my class sizes are closer to equal. Maybe I will upsample to an over_ratio of 0.5
