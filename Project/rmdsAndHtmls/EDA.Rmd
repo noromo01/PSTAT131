@@ -99,8 +99,6 @@ cor_results <- biking %>%
   select(-Rnk) %>% 
   correlate()
 
-rplot(cor_results)
-
 cor_results %>% 
   stretch() %>% 
   ggplot(aes(x,y,fill=r)) +
@@ -108,3 +106,22 @@ cor_results %>%
   geom_text(aes(label=as.character(fashion(r)))) +
   theme(axis.text.x=element_text(angle=-90))
 ```
+
+Overall, there are very few variables with super high correlation. A few variables have high correlation as expected. For example, winningTimeHours and winningTimeMinutes are highly correlated because winningTimeHours was used to calculate winningTimeMinutes. Also, on PCS race ranking is a function of startlist quality score, so it makes sense that these two variables have very high correlation. The same is true for vert meters and profile score. Some other interesting correlations exist in the high correlation between the number of grand tours raced and the age of the rider. It makes sense for there to be a high positive correlation here but for the value to be so high is surprising. Also, winningTimeMin and distance having a correlation of 0.97 is notable. It makes sense that these two are highly correlated but to have a correlation of almost one is notable. It seems like other factors such as vertical meters or even how the riders raced the race would lower the correlation slightly. I am very happy, however, that I have so many variables that have relatively low correlation that I get to play with in my analysis.
+
+### Split data into regression dataset and classification dataset
+I am unsure if my data will work better as a regression dataset or as a classification dataset. Thus, I have decided that I am going to try both. In bike races, riders compete heavily for the top 10 but after that riders are not overly worried about whether they finish in 42nd or in 72nd. Thus, for my classification dataset I am going to split the results into a top10 classification and then a notTop10 classification. I will then run models on this classification dataset. The code below is how I created the new classification dataset.
+```{r}
+#copy the dataframe
+bikingClass <- biking
+
+#assign categories
+bikingClass$Rnk <- ifelse(bikingClass$Rnk %in% c(1:10), "top10", "notTop10")
+
+#plot of finishes in top 10 versus not in the top 10
+ggplot(bikingClass, aes(x=factor(Rnk))) +
+  geom_bar(stat="count") +
+  labs(title="Count of Finishes in the Top 10 Versus not in the Top 10", x=NULL, y="Count")
+```
+
+I will need to conduct some upsampling so that my class sizes are closer to equal. Maybe I will upsample to an over_ratio of 0.5
