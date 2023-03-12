@@ -60,6 +60,9 @@ pokemon$type_1 <- factor(pokemon$type_1) %>%
 
 #make legendary a factor
 pokemon$legendary <- factor(pokemon$legendary)
+
+#make generation a factor
+pokemon$generation <- factor(pokemon$generation)
 ```
 
 ### Exercise 3
@@ -80,3 +83,22 @@ poke_folds <- vfold_cv(poke_train, v=5, strata="type_1")
 It is useful to stratify by type in v-fold so we don't have folds that have an overrepresentation of a certain type.
 
 ### Exercise 4
+```{r}
+#creating a correlation plot of only numeric continuous variables
+pokemon %>% 
+  select(is.numeric, -x, -generation) %>% 
+  cor() %>% 
+  corrplot(type="lower", diag=FALSE)
+```
+It appears that total has a high correlation with the rest of the predictors. This is probably because total is a sum of the other components. I do not think we need to include total in this analysis. Defense and sp_def, sp_atk and sp_def, and speed and sp_atk all have fairly high correlation but it is not high enough for me to exclude them from our analysis. Otherwise, all of the other variables have a fairly low correlation. Something interesting to note is the fact that none of the variables have a negative correlation, they all have positive correlations. It seems like somethign like attack and defense would have a negative correlation because maybe as you get better at attacking your defenses get worse and vica versa. This does not appear to be the case. Generally, as attack increases so does defense.
+
+### Exercise 5
+```{r}
+#create the recipe
+rec_poke <- recipe(type_1~legendary+generation+sp_atk+attack+speed+defense+hp+sp_def, data=poke_train) %>% 
+  step_dummy(all_nominal_predictors()) %>% 
+  step_normalize(all_predictors())
+```
+
+### Exercise 6
+
