@@ -1,0 +1,82 @@
+---
+title: "Homework5_solutions"
+author: "Noah Moyer"
+date: "2023-03-12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Getting set up
+```{r}
+#load in packages
+library(tidymodels)
+library(ISLR)
+library(ISLR2)
+library(tidyverse)
+library(glmnet)
+library(modeldata)
+library(ggthemes)
+library(janitor)
+library(naniar)
+library(xgboost)
+library(ranger)
+library(vip)
+library(corrplot)
+library(here)
+library(ggplot2)
+library(forcats)
+tidymodels_prefer()
+
+#read in data
+pokemon <- read.csv(here("Homework", "Homework5", "data", "Pokemon.csv"))
+```
+
+### Exercise 1
+```{r}
+#convert to snake case
+pokemon <- as_tibble(pokemon) %>% 
+  clean_names()
+```
+
+It changed all the variable names so that instead of many of the names including periods all words are simply seperated by an underscore. This is useful because it means that variable names are easily predictable and it was a lot more efficient than trying to rename the columns one at a time.
+
+### Exercise 2
+```{r}
+#create the bar chart
+ggplot(data=pokemon, aes(x=type_1)) +
+  geom_bar(stat="count") +
+  theme(axis.text.x=element_text(angle=45))
+```
+
+There are 18 classes. The flying class has an especially low count but fairy also has a somewhat lower count.  
+I will now convert the low count classes into an "other" class.
+```{r}
+#make type a factor and lump together the top 6, the rest are classified as other
+pokemon$type_1 <- factor(pokemon$type_1) %>% 
+  fct_lump_n(6)
+
+#make legendary a factor
+pokemon$legendary <- factor(pokemon$legendary)
+```
+
+### Exercise 3
+```{r}
+set.seed(2506)
+
+#split the data
+poke_split <- initial_split(pokemon, prop=0.75, strata="type_1")
+
+#classify as training or testing
+poke_train <- training(poke_split)
+poke_test <- training(poke_split)
+
+#set up k-fold cross validation
+poke_folds <- vfold_cv(poke_train, v=5, strata="type_1")
+```
+
+It is useful to stratify by type in v-fold so we don't have folds that have an overrepresentation of a certain type.
+
+### Exercise 4
