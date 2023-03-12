@@ -101,4 +101,68 @@ rec_poke <- recipe(type_1~legendary+generation+sp_atk+attack+speed+defense+hp+sp
 ```
 
 ### Exercise 6
+```{r}
+#set up model for elastic net multinominal regression (ENMR)
+ENMR <- multinom_reg(mixture=tune(), penalty=tune()) %>% 
+  set_mode("classification") %>% 
+  set_engine("glmnet")
 
+#set up workflow for ENMR
+ENMR_wf_poke <- workflow() %>% 
+  add_model(ENMR) %>% 
+  add_recipe(rec_poke)
+
+#set up grid for ENMR
+ENMR_grid <- grid_regular(penalty(range=c(0.01,3)), 
+                          mixture(range=c(0,1)), 
+                          levels=10)
+```
+
+### Exercise 7
+```{r}
+#set up model for random forest
+random_forest <- rand_forest(mtry=tune(), trees=tune(), min_n=tune()) %>% 
+  set_engine("ranger", importance="impurity") %>% 
+  set_mode("classification")
+
+#set up workflow for random forest
+random_forest_wf_poke <- workflow() %>% 
+  add_model(random_forest) %>% 
+  add_recipe(rec_poke)
+
+#set up grid for random forest
+random_forest_grid <- grid_regular(mtry(range=c(1,8)),
+                                   trees(range=c(100,800)),
+                                   min_n(range=c(10,18)),
+                                   levels=8)
+```
+
+Mtry is how many predictors the algorithm will randomly select to make each split. After a random set of predictors is selected, the algorithm will then choose the best predictor to split the data on. This is in order to reduce dependence with trees and minimize pairwise correlation.  
+Trees is how many decision trees there are in the forest. The result from each tree will be averaged to make a final prediction.  
+Min_n is how many results need to be at a node of the training dataset for the tree to stop branching and place a leaf/node instead.  
+Mtry being less than 1 or greater than 8 would not make sense. Greater than 8 would not make sense because we only have 8 predictors. Less than 1 would not make sense because it would be impossible to select 0 or -1 predictors.  
+Mtry=8 represents a bagging linear model.  
+
+#Exercise 8
+```{r, eval=FALSE}
+#fit the ENMR model
+ENMR_fit <- tune_grid(
+  object=ENMR_wf_poke,
+  resamples=poke_folds,
+  grid=ENMR_grid,
+  control=control_grid(verbose=TRUE)
+)
+
+#fit the random forest model
+random_forest_fit <- tune_grid(
+  object=random_forest_wf_poke,
+  resamples=poke_folds,
+  grid=random_forest_grid,
+  control=control_grid(verbose=TRUE)
+)
+
+#save the runs
+save(ENMR_fit, file=here("Homework", "Homework5", "rdas", "ENMR_fit.rda"))
+save(random_forest_fit, file=here("Homework", "Homework5", "rdas", "ENMR_fit.rda"))
+
+```
