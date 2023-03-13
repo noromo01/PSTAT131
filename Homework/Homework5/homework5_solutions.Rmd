@@ -9,6 +9,8 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+Note that if you want to be able to run this code without running the whole models, you will need to modify the file paths on line 175 and 176. The code is currently set up for my personal file path inside my project.
+
 ### Getting set up
 ```{r}
 #load in packages
@@ -90,6 +92,7 @@ pokemon %>%
   cor() %>% 
   corrplot(type="lower", diag=FALSE)
 ```
+
 It appears that total has a high correlation with the rest of the predictors. This is probably because total is a sum of the other components. I do not think we need to include total in this analysis. Defense and sp_def, sp_atk and sp_def, and speed and sp_atk all have fairly high correlation but it is not high enough for me to exclude them from our analysis. Otherwise, all of the other variables have a fairly low correlation. Something interesting to note is the fact that none of the variables have a negative correlation, they all have positive correlations. It seems like somethign like attack and defense would have a negative correlation because maybe as you get better at attacking your defenses get worse and vica versa. This does not appear to be the case. Generally, as attack increases so does defense.
 
 ### Exercise 5
@@ -163,6 +166,78 @@ random_forest_fit <- tune_grid(
 
 #save the runs
 save(ENMR_fit, file=here("Homework", "Homework5", "rdas", "ENMR_fit.rda"))
-save(random_forest_fit, file=here("Homework", "Homework5", "rdas", "ENMR_fit.rda"))
+save(random_forest_fit, file=here("Homework", "Homework5", "rdas", "random_forest_fit.rda"))
 
 ```
+
+```{r}
+#read back in the runs
+load(here("Homework", "Homework5", "rdas", "ENMR_fit.rda"))
+load(here("Homework", "Homework5", "rdas", "random_forest_fit.rda"))
+```
+
+I will now investigate how the models did.
+```{r}
+#check out the ENMR model
+autoplot(ENMR_fit) + theme_minimal()
+
+#check out the random forest model
+autoplot(random_forest_fit) + theme_minimal()
+```
+
+Both of these plots are somewhat overwhelming to me. I am going to guess which models performed the best based on the graphs and then use show_best to return the best model. It appears that low levels of penalty and regularization return better results. For the random forest it appears that higher numbers of randomly selected predictors performed better. It doesn't appear as if there is a huge amount of difference across node size and also not a huge amount of difference across the number of trees. We should note, however, that more trees seems to perform slightly better.
+
+I will now return the definitive best model for both fits.
+```{r}
+#return the best 5 models for ENMR
+show_best(ENMR_fit, n=5)
+
+#return the best 5 models for random_forest
+show_best(random_forest_fit, n=5)
+```
+
+The best elastic net model had a penalty of 1.023293 and no mixture. The best random forest has 3 randomly selected predictors, only 100 trees, and a minimum number of nodes of 13.
+
+### Exercise 9
+```{r}
+#select the best random forest model
+best_random_forest <- select_best(random_forest_fit)
+
+#fit to training set
+final_random_forest_poke <- finalize_workflow(random_forest_wf_poke, best_random_forest) %>% 
+  fit(poke_train)
+
+#evaluate on the testing set
+poke_random_forest_test <- augment(final_random_forest_poke,
+                                   poke_test) %>% 
+  select(type_1, starts_with(".pred"))
+
+#let's see how well the model worked
+roc_auc(poke_random_forest_test, truth=type_1, .pred_Bug:.pred_Other)
+```
+
+It appears that the model has worked extremely well.
+
+```{r}
+#variable importance plot
+final_random_forest_poke %>% extract_fit_parsnip() %>% 
+  vip() +
+  theme_minimal()
+```
+
+The sp_atk variable appears to be the most important. The attack, speed, defense, hp, and sp_def variables are also important, and almost equally important. Notably, the generation that the pokemon is from was not important. I am surprised how all of the variables that build the pokemon are all of relatively equal importance. I am not surprised that generation was not important. When a new generation is created, it would be weird if there was a lot more of one type of pokemon compared to another.
+
+```{r}
+#create roc curves of the different types of pokemon
+roc_curve(poke_random_forest_test, truth=type_1, .pred_Bug:.pred_Other) %>% 
+  autoplot()
+
+#create a confusion matrix
+conf_mat(poke_random_forest_test, truth=type_1, .pred_class) %>% 
+  autoplot(type="heatmap")
+```
+
+### Exercise 10
+The random forest did well. An ROC of 0.996 is great. I do notice a little hack that my random forest did. It appears that the random forest overpredicted the number of others. In fact, it appears that the algorithm did not predict the right specific class even close to our overall ROC level. Basically, when in doubt the algorithm assigned to other, which worked fairly well. I think if I was to run this again, I would upsample the number of the classes that are not other so that they are closer to equal levels to other. This would keep our algorithm from defaulting to other.
+
+The algorithm is best at predicting other, worst at predicting bug. Other than the other class, the algorithm was the best at predicting psychic. As I know next to nothing about pokemon, I have no clue for why it was best at predicting this class rather than others.
