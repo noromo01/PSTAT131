@@ -32,13 +32,25 @@ bikeClass$Rnk <- factor(bikeClass$Rnk)
 bikeClass$ParcourTypeCategorical <- factor(bikeClass$ParcourTypeCategorical)
 bikeClass$WonByCategorical <- factor(bikeClass$WonByCategorical)
 
+#remove unneccesary variable
+bikeClass <- bikeClass %>% 
+  select(-c(raceName, RiderName, RiderLastName, Team, WinningTimeHours, WinningTimeMinutes, Months, Days, VertMeters, StartlistQualScore))
+```
+I removed raceName,  RiderName, RiderLastName, and Team because all of these variables are identification variables and would not be useful in our analysis. I removed WinningTimeHours and WinningTimeMinutes because these are both variables that were used to determine WinningTimeMin ($Hours+Minutes*60$). I removed Months and Days because they were used to determine DaysIntoYear ($30.4*Months+Days$). I removed VertMeters because of the high correlation with ProfileScore. I know that ProfileScore was calculated using VertMeters. I removed StartlistQualScore because of the high correlation with RaceRanking. I know that StartlistQualScore was calculated using RaceRanking. I believe that other variables with high correlation, such as GCScore and Climber score as well as WinningTimeMin and Distance are still useful for our analysis. For example, in the rare case that a rider has a low GCScore but a high Climber score that tells us that the rider is very good at climbing but bad at other characteristics of a GC rider such as time trialing. Also, in the case that WinningTimeMin and Distance do not correlate as predicted this tells us that something must have happened in the race that caused it to be a lot slower. This could provide some interesting insights.
+
+We will proceed forward with splitting the data.
+
+```{r}
 set.seed(110)
 
+#split the dataset by 0.75
 bikeSplit <- initial_split(bikeClass, strata="Rnk", prop=0.75)
 
+#set into training and test
 bikeTrain <- training(bikeSplit)
 bikeTest <- testing(bikeSplit)
 
+#create a ten fold cross validation
 bikeFold <- vfold_cv(bikeTrain, v=10)
 
 ```
@@ -50,5 +62,5 @@ Building the recipe for the bikeClass
 bikeRecipe <- recipe(Rnk~., data=bikeTrain) %>% 
   step_dummy(all_nominal_predictors()) %>% 
   step_normalize(all_predictors())
-#NEXT: decide what variables to remove based on the corr plot
+#NEXT: add other steps to the recipe
 ```
