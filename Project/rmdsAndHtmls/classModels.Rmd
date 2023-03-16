@@ -23,23 +23,7 @@ library(corrplot)
 library(themis) #for step_upsample
 tidymodels_prefer()
 bikeClass <- read_excel(here("Project", "rawData", "bikingClass.xlsx"))
-bikingOG <- bikeClass
-library(tidymodels)
-library(ISLR)
-library(ISLR2)
-library(tidyverse)
-library(glmnet)
-library(modeldata)
-library(ggthemes)
-library(janitor)
-library(naniar)
-library(xgboost)
-library(ranger)
-library(vip)
-library(corrplot)
-library(here)
-library(ggplot2)
-library(forcats)
+bikingOG <- bikeClass #for the corr plot
 ```
 
 ### Split data
@@ -105,8 +89,8 @@ bikeRecipe <- recipe(Rnk~., data=bikeTrain) %>%
 
 I am well aware that my response variable is very unbalanced. Thus, to make up for this I am upsampling. However, I don't want to overdo how much some variables may be copied so I only set the over_ratio to 0.5.
 
-### Choosing models to fit to the data
-I shall fit XYZ models to my classification dataset.
+### Model choice and fitting
+I shall fit 5 models to my classification dataset. I first decided to do a logistic regression as a good base model. The next model I decided to used was a regularized regression logistic model in order to return the best possible logistic regression using a combination of Lasso and Ridge regularization as well as tuning the penalty hyperparameter. I also decided to use a K-nearest neighbors (KNN) model as this model is distinctly different than the other models. I finally decided to use a random forest and a boosted tree model as these models are the most advanced and I expect them to return the best results.
 ```{r}
 #Logistic regression
 log_reg <- logistic_reg() %>% 
@@ -138,8 +122,8 @@ boosted_for <- boost_tree(mtry=tune(),
   set_engine("xgboost") %>% 
   set_mode("classification")
 ```
-Next, time to create some grids
 
+For my hyperparameters, I am going to do some tuning in order to figure out the best hyperparameters. For logistic regularized regression I chose 0 through 1 for penalty and mixture in order to get a wide range of penalties for the regularization and a wide range of mixtures between Lasso and Ridge. For KNN I chose one step increments between 2 and 8. I figure 1 is probably too specific but 2 through 8 seems to give a good range that will provide some useful insights. For my random forest, I chose the number of predictors to be randomly selected between each split to be between 1 and 16 because I have 26 predictors and want to get a good range of different values for how many predictors I have. I chose trees to be between 100 and 800 because this gives us lots of varying levels of forest size. For the minimum number of nodes I chose between 10 and 18 because this is a decent amount of nodes at each terminal branch but it is not too many. For the boosted tree, I used the same logic for the number of predictors selected at each split and trees as I used for the random forest. For learn rate I chose between -10 and -1 because this correlates to $1*10^{-10}$ through $0.1$ which gives us a wide variaty of learning rates.
 ```{r}
 #logistic regularized regression grid
 log_reg_reg_grid <- grid_regular(penalty(range=c(0,1),
@@ -150,13 +134,13 @@ log_reg_reg_grid <- grid_regular(penalty(range=c(0,1),
 KNN_grid <- grid_regular(neighbors(range=c(2,8)),
                          levels=7)
 #random forest grid
-rand_for_grid <- grid_regular(mtry(range=c(1,8)),
+rand_for_grid <- grid_regular(mtry(range=c(1,16)),
                               trees(range=c(100,800)),
                               min_n(range=c(10,18)),
                               levels=8)
 
 #boosted tree grid
-boosted_for_grid <- grid_regular(mtry(range=c(1,8)),
+boosted_for_grid <- grid_regular(mtry(range=c(1,16)),
                                  trees(range=c(100,800)),
                                  learn_rate(range=c(-10,-1)),
                                  levels=8)
@@ -171,28 +155,71 @@ log_reg_wkflw <- workflow() %>%
   add_model(log_reg) %>% 
   add_recipe(bikeRecipe)
 
+#workflow for the regularized regression
+log_reg_reg_wkflw <- workflow() %>% 
+  add_model(log_reg_reg) %>% 
+  add_recipe(bikeRecipe)
+
+#workflow for K-nearest neighbors
+KNN_wkflw <- workflow() %>% 
+  add_model(KNN) %>% 
+  add_recipe(bikeRecipe)
+
 #workflow for the random forest
-rand_for_wf <- workflow() %>% 
+rand_for_wkflw <- workflow() %>% 
   add_model(rand_for) %>% 
   add_recipe(bikeRecipe)
+
+#workflow for the boosted tree
+boosted_for_wkflw <- workflow () %>% 
+  add_model(boosted_for) %>% 
+  add_forest(bikeRecipe)
 ```
 
-Next, we fit the models
-```{r}
+Next, we fit the models. Note that this is going to take a while to run. Thus, I set eval to false so that I would not have to run this every time. I then saved the models at the end of this code so they could be loaded in later and analyzed without having to run this code every single time.
+```{r, eval=FALSE}
 #model fit for the logistic regression model
 log_reg_fit <- fit_resamples(
   object=log_reg_wkflw,
   resamples=bikeFold
 )
 
+#model fit for regularized regression
+log_reg_reg_fit <- tune_grid(
+  object=log_reg_reg_wkflw,
+  resamples=bikeFold,
+  grid=log_reg_reg_grid,
+  control=control_grid(verbose=TRUE)
+)
+
+#model fit for k-nearest-neighbors
+KNN_fit <- tune_grid(
+  object=KNN_wkflw,
+  resamples=bikeFold,
+  grid=KNN_grid,
+  control=control_grid(verbose=TRUE)
+)
+
 #model fit for the random forest
 rand_for_fit <- tune_grid(
-  object=rand_for_wf,
+  object=rand_for_wkflw,
   resamples=bikeFold,
   grid=rand_for_grid,
   control=control_grid(verbose=TRUE)
 )
+
+#model fit for boosted tree
+boosted_for_fit <- tune_grid(
+  object=boosted_for_wkflw,
+  resamples=bikeFold,
+  grid=boosted_for_grid,
+  control=control_grid(verbose=TRUE)
+)
+
+#save the models
+save(log_reg_fit, file=here("Project", "modelRuns", "class_log_reg_fit.rda"))
+save(log_reg_reg_fit, file=here("Project", "modelRuns", "class_log_reg_reg_fit.rda"))
+save(KNN_fit, file=here("Project", "modelRuns", "class_KNN_fit.rda"))
+save(rand_for_fit, file=here("Project", "modelRuns", "class_rand_for_fit.rda"))
+save(boosted_for_fit, file=here("Project", "modelRuns", "class_boosted_for_fit.rda"))
 ```
-Error: x Fold10: preprocessor 1/1, model 1/1 (predictions):
-  Error in `predict_model()`:
-  ! Some assessment set rows are not available at prediction time. ...
