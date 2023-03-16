@@ -81,14 +81,14 @@ We will proceed forward with splitting the data.
 set.seed(110)
 
 #split the dataset by 0.75
-bikeSplit <- initial_split(bikeClass, strata="Rnk", prop=0.75)
+bikeSplit <- initial_split(bikeClass, prop=0.75, strata="Rnk")
 
 #set into training and test
 bikeTrain <- training(bikeSplit)
 bikeTest <- testing(bikeSplit)
 
 #create a ten fold cross validation
-bikeFold <- vfold_cv(bikeTrain, v=10)
+bikeFold <- vfold_cv(bikeTrain, v=10, strata="Rnk")
 
 ```
 
@@ -100,10 +100,10 @@ Building the recipe for the bikeClass
 bikeRecipe <- recipe(Rnk~., data=bikeTrain) %>% 
   step_dummy(all_nominal_predictors()) %>% #dummy code all the categorical variables
   step_normalize(all_predictors()) %>% #set all numeric variables such that they have a mean of 0 and variance of 1
-  step_upsample(Rnk, over_ratio=0.25, skip=FALSE) #upsample Rnk (our response variable) such that top 10 is equal to a quarter of notTopTen
+  step_upsample(Rnk, over_ratio=0.5) #upsample Rnk (our response variable) such that top 10 is equal to a quarter of notTopTen
 ```
 
-I am well aware that my response variable is very unbalanced. Thus, to make up for this I am upsampling. However, I don't want to overdo how much some variables may be copied so I only set the over_ratio to 0.25.
+I am well aware that my response variable is very unbalanced. Thus, to make up for this I am upsampling. However, I don't want to overdo how much some variables may be copied so I only set the over_ratio to 0.5.
 
 ### Choosing models to fit to the data
 I shall fit XYZ models to my classification dataset.
