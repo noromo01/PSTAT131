@@ -24,6 +24,22 @@ library(themis) #for step_upsample
 tidymodels_prefer()
 bikeClass <- read_excel(here("Project", "rawData", "bikingClass.xlsx"))
 bikingOG <- bikeClass
+library(tidymodels)
+library(ISLR)
+library(ISLR2)
+library(tidyverse)
+library(glmnet)
+library(modeldata)
+library(ggthemes)
+library(janitor)
+library(naniar)
+library(xgboost)
+library(ranger)
+library(vip)
+library(corrplot)
+library(here)
+library(ggplot2)
+library(forcats)
 ```
 
 ### Split data
@@ -123,3 +139,60 @@ boosted_for <- boost_tree(mtry=tune(),
   set_mode("classification")
 ```
 Next, time to create some grids
+
+```{r}
+#logistic regularized regression grid
+log_reg_reg_grid <- grid_regular(penalty(range=c(0,1),
+                                 trans=identity_trans()),
+                                 mixture(range=c(0,1)),
+                                 levels=5)
+#KNN grid
+KNN_grid <- grid_regular(neighbors(range=c(2,8)),
+                         levels=7)
+#random forest grid
+rand_for_grid <- grid_regular(mtry(range=c(1,8)),
+                              trees(range=c(100,800)),
+                              min_n(range=c(10,18)),
+                              levels=8)
+
+#boosted tree grid
+boosted_for_grid <- grid_regular(mtry(range=c(1,8)),
+                                 trees(range=c(100,800)),
+                                 learn_rate(range=c(-10,-1)),
+                                 levels=8)
+
+
+```
+
+Now we set up the workflows
+```{r}
+#workflow for the logistic regression model
+log_reg_wkflw <- workflow() %>% 
+  add_model(log_reg) %>% 
+  add_recipe(bikeRecipe)
+
+#workflow for the random forest
+rand_for_wf <- workflow() %>% 
+  add_model(rand_for) %>% 
+  add_recipe(bikeRecipe)
+```
+
+Next, we fit the models
+```{r}
+#model fit for the logistic regression model
+log_reg_fit <- fit_resamples(
+  object=log_reg_wkflw,
+  resamples=bikeFold
+)
+
+#model fit for the random forest
+rand_for_fit <- tune_grid(
+  object=rand_for_wf,
+  resamples=bikeFold,
+  grid=rand_for_grid,
+  control=control_grid(verbose=TRUE)
+)
+```
+Error: x Fold10: preprocessor 1/1, model 1/1 (predictions):
+  Error in `predict_model()`:
+  ! Some assessment set rows are not available at prediction time. ...
