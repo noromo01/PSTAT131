@@ -1,0 +1,194 @@
+---
+title: "regModels"
+author: "Noah Moyer"
+date: "2023-03-16"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Note: Much of the code is the same as the classModels.Rmd. Commentary on the code has been removed where it would be redundent. The major difference in this code is that the regressor variable is no longer chatagorical, but is numeric. The response variable is simply the place the rider finished as a number. Commentary is still included when the code is novel.
+
+### Packages and read in dataset
+```{r}
+library(tidymodels)
+library(ISLR)
+library(ISLR2)
+library(tidyverse)
+library(glmnet)
+library(here)
+library(readxl)
+tidymodels_prefer()
+bikeReg <- read_excel(here("Project", "rawData", "bikingDF.xlsx"))
+```
+
+### Split data
+
+```{r}
+#make the classification variables into factors
+bikeReg$ParcourTypeCategorical <- factor(bikeReg$ParcourTypeCategorical)
+bikeReg$WonByCategorical <- factor(bikeReg$WonByCategorical)
+
+#remove unneccesary variable
+bikeReg <- bikeReg %>% 
+  select(-c(raceName, RiderName, RiderLastName, Team, WinningTimeHours, WinningTimeMinutes, Months, Days, VertMeters, StartlistQualScore))
+
+set.seed(110)
+
+#split the dataset by 0.75
+bikeSplit <- initial_split(bikeReg, prop=0.75, strata="Rnk")
+
+#set into training and test
+bikeTrain <- training(bikeSplit)
+bikeTest <- testing(bikeSplit)
+
+#create a ten fold cross validation
+bikeFold <- vfold_cv(bikeTrain, v=10, strata="Rnk")
+
+```
+
+### Building the recipe
+```{r}
+#build the recipe
+bikeRecipe <- recipe(Rnk~., data=bikeTrain) %>% 
+  step_dummy(all_nominal_predictors()) %>% #dummy code all the categorical variables
+  step_normalize(all_predictors()) %>% #set all numeric variables such that they have a mean of 0 and variance of 1
+```
+
+### Model choice and fitting
+All the models here are the same as the classification models except for a few differences. First off, instead of a logistic regression we use a linear regression for the first model. For the second model, we are creating a regularized regression based on a linear regression instead of a logistic regression. For all the models, the mode is regression instead of classification.
+```{r}
+#Linear regression
+lin_reg <- linear_reg() %>% 
+  set_mode("regression") %>% 
+  set_engine("glm")
+
+#Regularized regression
+lin_reg_reg <- linear_reg(mixture=tune(),
+                            penalty=tune()) %>% 
+  set_mode("regression") %>% 
+  set_engine("glmnet")
+
+#K-nearest neighbors
+KNN <- nearest_neighbor(neighbors=tune()) %>% 
+  set_mode("regression") %>% 
+  set_engine("kknn")
+
+#random forest
+rand_for <- rand_forest(mtry=tune(),
+                        trees=tune(),
+                        min_n=tune()) %>% 
+  set_engine("ranger") %>% 
+  set_mode("regression")
+
+#boosted trees
+boosted_for <- boost_tree(mtry=tune(),
+                          trees=tune(),
+                          learn_rate=tune()) %>% 
+  set_engine("xgboost") %>% 
+  set_mode("regression")
+```
+
+The same hyperparameters were used from the classification models based on the same logic.
+```{r}
+#logistic regularized regression grid
+lin_reg_reg_grid <- grid_regular(penalty(range=c(0,1),
+                                 trans=identity_trans()),
+                                 mixture(range=c(0,1)),
+                                 levels=5)
+#KNN grid
+KNN_grid <- grid_regular(neighbors(range=c(2,8)),
+                         levels=7)
+#random forest grid
+rand_for_grid <- grid_regular(mtry(range=c(1,16)),
+                              trees(range=c(100,800)),
+                              min_n(range=c(10,18)),
+                              levels=8)
+
+#boosted tree grid
+boosted_for_grid <- grid_regular(mtry(range=c(1,16)),
+                                 trees(range=c(100,800)),
+                                 learn_rate(range=c(-10,-1)),
+                                 levels=8)
+
+
+```
+
+Now we set up the workflows
+```{r}
+#workflow for the linear regression model
+lin_reg_wkflw <- workflow() %>% 
+  add_model(lin_reg) %>% 
+  add_recipe(bikeRecipe)
+
+#workflow for the regularized regression
+lin_reg_reg_wkflw <- workflow() %>% 
+  add_model(lin_reg_reg) %>% 
+  add_recipe(bikeRecipe)
+
+#workflow for K-nearest neighbors
+KNN_wkflw <- workflow() %>% 
+  add_model(KNN) %>% 
+  add_recipe(bikeRecipe)
+
+#workflow for the random forest
+rand_for_wkflw <- workflow() %>% 
+  add_model(rand_for) %>% 
+  add_recipe(bikeRecipe)
+
+#workflow for the boosted tree
+boosted_for_wkflw <- workflow () %>% 
+  add_model(boosted_for) %>% 
+  add_recipe(bikeRecipe)
+```
+
+Next, we fit the models. Note that this is going to take a while to run. Thus, I set eval to false so that I would not have to run this every time. I then saved the models at the end of this code so they could be loaded in later and analyzed without having to run this code every single time.
+```{r, eval=FALSE}
+#model fit for the linear regression model
+lin_reg_fit <- fit_resamples(
+  object=lin_reg_wkflw,
+  resamples=bikeFold
+)
+
+#model fit for regularized regression
+lin_reg_reg_fit <- tune_grid(
+  object=lin_reg_reg_wkflw,
+  resamples=bikeFold,
+  grid=lin_reg_reg_grid,
+  control=control_grid(verbose=TRUE)
+)
+
+#model fit for k-nearest-neighbors
+KNN_fit <- tune_grid(
+  object=KNN_wkflw,
+  resamples=bikeFold,
+  grid=KNN_grid,
+  control=control_grid(verbose=TRUE)
+)
+
+#model fit for the random forest
+rand_for_fit <- tune_grid(
+  object=rand_for_wkflw,
+  resamples=bikeFold,
+  grid=rand_for_grid,
+  control=control_grid(verbose=TRUE)
+)
+
+#model fit for boosted tree
+boosted_for_fit <- tune_grid(
+  object=boosted_for_wkflw,
+  resamples=bikeFold,
+  grid=boosted_for_grid,
+  control=control_grid(verbose=TRUE)
+)
+
+#save the models
+save(lin_reg_fit, file=here("Project", "modelRuns", "reg_lin_reg_fit.rda"))
+save(lin_reg_reg_fit, file=here("Project", "modelRuns", "reg_lin_reg_reg_fit.rda"))
+save(KNN_fit, file=here("Project", "modelRuns", "reg_KNN_fit.rda"))
+save(rand_for_fit, file=here("Project", "modelRuns", "reg_rand_for_fit.rda"))
+save(boosted_for_fit, file=here("Project", "modelRuns", "reg_boosted_for_fit.rda"))
+```
+
