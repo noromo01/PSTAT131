@@ -173,7 +173,7 @@ rand_for_wkflw <- workflow() %>%
 #workflow for the boosted tree
 boosted_for_wkflw <- workflow () %>% 
   add_model(boosted_for) %>% 
-  add_forest(bikeRecipe)
+  add_recipe(bikeRecipe)
 ```
 
 Next, we fit the models. Note that this is going to take a while to run. Thus, I set eval to false so that I would not have to run this every time. I then saved the models at the end of this code so they could be loaded in later and analyzed without having to run this code every single time.
