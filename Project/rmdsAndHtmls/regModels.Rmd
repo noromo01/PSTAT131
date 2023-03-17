@@ -53,7 +53,7 @@ bikeFold <- vfold_cv(bikeTrain, v=10, strata="Rnk")
 #build the recipe
 bikeRecipe <- recipe(Rnk~., data=bikeTrain) %>% 
   step_dummy(all_nominal_predictors()) %>% #dummy code all the categorical variables
-  step_normalize(all_predictors()) %>% #set all numeric variables such that they have a mean of 0 and variance of 1
+  step_normalize(all_predictors()) #set all numeric variables such that they have a mean of 0 and variance of 1
 ```
 
 ### Model choice and fitting
