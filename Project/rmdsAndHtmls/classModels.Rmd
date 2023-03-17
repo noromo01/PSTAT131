@@ -74,7 +74,11 @@ bikeTest <- testing(bikeSplit)
 #create a ten fold cross validation
 bikeFold <- vfold_cv(bikeTrain, v=10, strata="Rnk")
 
+#create a five fold cross validation
+bikeFoldSmall <- vfold_cv(bikeTrain, v=5, strata="Rnk")
+
 ```
+ADD TEXT
 
 ### Building the recipe
 Building the recipe for the bikeClass
@@ -123,6 +127,7 @@ boosted_for <- boost_tree(mtry=tune(),
   set_mode("classification")
 ```
 
+FIX TEXT
 For my hyperparameters, I am going to do some tuning in order to figure out the best hyperparameters. For logistic regularized regression I chose 0 through 1 for penalty and mixture in order to get a wide range of penalties for the regularization and a wide range of mixtures between Lasso and Ridge. For KNN I chose one step increments between 2 and 8. I figure 1 is probably too specific but 2 through 8 seems to give a good range that will provide some useful insights. For my random forest, I chose the number of predictors to be randomly selected between each split to be between 1 and 16 because I have 26 predictors and want to get a good range of different values for how many predictors I have. I chose trees to be between 100 and 800 because this gives us lots of varying levels of forest size. For the minimum number of nodes I chose between 10 and 18 because this is a decent amount of nodes at each terminal branch but it is not too many. For the boosted tree, I used the same logic for the number of predictors selected at each split and trees as I used for the random forest. For learn rate I chose between -10 and -1 because this correlates to $1*10^{-10}$ through $0.1$ which gives us a wide variaty of learning rates.
 ```{r}
 #logistic regularized regression grid
@@ -134,16 +139,16 @@ log_reg_reg_grid <- grid_regular(penalty(range=c(0,1),
 KNN_grid <- grid_regular(neighbors(range=c(2,8)),
                          levels=7)
 #random forest grid
-rand_for_grid <- grid_regular(mtry(range=c(1,16)),
+rand_for_grid <- grid_regular(mtry(range=c(8,20)),
                               trees(range=c(100,800)),
                               min_n(range=c(10,18)),
-                              levels=8)
+                              levels=5)
 
 #boosted tree grid
-boosted_for_grid <- grid_regular(mtry(range=c(1,16)),
+boosted_for_grid <- grid_regular(mtry(range=c(8,20)),
                                  trees(range=c(100,800)),
                                  learn_rate(range=c(-10,-1)),
-                                 levels=8)
+                                 levels=5)
 
 
 ```
@@ -183,6 +188,7 @@ log_reg_fit <- fit_resamples(
   object=log_reg_wkflw,
   resamples=bikeFold
 )
+save(log_reg_fit, file=here("Project", "modelRuns", "class_log_reg_fit.rda"))
 
 #model fit for regularized regression
 log_reg_reg_fit <- tune_grid(
@@ -191,6 +197,7 @@ log_reg_reg_fit <- tune_grid(
   grid=log_reg_reg_grid,
   control=control_grid(verbose=TRUE)
 )
+save(log_reg_reg_fit, file=here("Project", "modelRuns", "class_log_reg_reg_fit.rda"))
 
 #model fit for k-nearest-neighbors
 KNN_fit <- tune_grid(
@@ -199,27 +206,29 @@ KNN_fit <- tune_grid(
   grid=KNN_grid,
   control=control_grid(verbose=TRUE)
 )
+save(KNN_fit, file=here("Project", "modelRuns", "class_KNN_fit.rda"))
 
 #model fit for the random forest
 rand_for_fit <- tune_grid(
   object=rand_for_wkflw,
-  resamples=bikeFold,
+  resamples=bikeFoldSmall,
   grid=rand_for_grid,
   control=control_grid(verbose=TRUE)
 )
+save(rand_for_fit, file=here("Project", "modelRuns", "class_rand_for_fit.rda"))
 
 #model fit for boosted tree
 boosted_for_fit <- tune_grid(
   object=boosted_for_wkflw,
-  resamples=bikeFold,
+  resamples=bikeFoldSmall,
   grid=boosted_for_grid,
   control=control_grid(verbose=TRUE)
 )
+save(boosted_for_fit, file=here("Project", "modelRuns", "class_boosted_for_fit.rda"))
 
 #save the models
-save(log_reg_fit, file=here("Project", "modelRuns", "class_log_reg_fit.rda"))
-save(log_reg_reg_fit, file=here("Project", "modelRuns", "class_log_reg_reg_fit.rda"))
-save(KNN_fit, file=here("Project", "modelRuns", "class_KNN_fit.rda"))
-save(rand_for_fit, file=here("Project", "modelRuns", "class_rand_for_fit.rda"))
-save(boosted_for_fit, file=here("Project", "modelRuns", "class_boosted_for_fit.rda"))
+
+
+
+
 ```
