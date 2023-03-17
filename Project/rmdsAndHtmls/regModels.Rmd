@@ -46,7 +46,6 @@ bikeTest <- testing(bikeSplit)
 
 #create a ten fold cross validation
 bikeFold <- vfold_cv(bikeTrain, v=10, strata="Rnk")
-
 ```
 
 ### Building the recipe
@@ -105,13 +104,13 @@ KNN_grid <- grid_regular(neighbors(range=c(2,8)),
 rand_for_grid <- grid_regular(mtry(range=c(1,16)),
                               trees(range=c(100,800)),
                               min_n(range=c(10,18)),
-                              levels=8)
+                              levels=5)
 
 #boosted tree grid
 boosted_for_grid <- grid_regular(mtry(range=c(1,16)),
                                  trees(range=c(100,800)),
                                  learn_rate(range=c(-10,-1)),
-                                 levels=8)
+                                 levels=5)
 
 
 ```
