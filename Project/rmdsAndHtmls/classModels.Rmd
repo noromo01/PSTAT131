@@ -73,10 +73,6 @@ bikeTest <- testing(bikeSplit)
 
 #create a ten fold cross validation
 bikeFold <- vfold_cv(bikeTrain, v=10, strata="Rnk")
-
-#create a five fold cross validation
-bikeFoldSmall <- vfold_cv(bikeTrain, v=5, strata="Rnk")
-
 ```
 ADD TEXT
 
@@ -211,7 +207,7 @@ save(KNN_fit, file=here("Project", "modelRuns", "class_KNN_fit.rda"))
 #model fit for the random forest
 rand_for_fit <- tune_grid(
   object=rand_for_wkflw,
-  resamples=bikeFoldSmall,
+  resamples=bikeFold,
   grid=rand_for_grid,
   control=control_grid(verbose=TRUE)
 )
@@ -220,7 +216,7 @@ save(rand_for_fit, file=here("Project", "modelRuns", "class_rand_for_fit.rda"))
 #model fit for boosted tree
 boosted_for_fit <- tune_grid(
   object=boosted_for_wkflw,
-  resamples=bikeFoldSmall,
+  resamples=bikeFold,
   grid=boosted_for_grid,
   control=control_grid(verbose=TRUE)
 )
