@@ -132,8 +132,8 @@ log_reg_reg_grid <- grid_regular(penalty(range=c(0,1),
                                  mixture(range=c(0,1)),
                                  levels=5)
 #KNN grid
-KNN_grid <- grid_regular(neighbors(range=c(2,8)),
-                         levels=7)
+KNN_grid <- grid_regular(neighbors(range=c(2,12)),
+                         levels=11)
 #random forest grid
 rand_for_grid <- grid_regular(mtry(range=c(8,20)),
                               trees(range=c(100,800)),

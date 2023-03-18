@@ -1,0 +1,86 @@
+---
+title: "results"
+author: "Noah Moyer"
+date: "2023-03-18"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Read in packages and models
+```{r}
+library(here)
+library(tidyverse)
+library(tidymodels)
+
+#read in the model runs from the classification code, rename to names that make sense
+load(here("Project", "modelRuns", "class_boosted_for_fit.rda"))
+class_boosted_for <- boosted_for_fit
+
+load(here("Project", "modelRuns", "class_KNN_fit.rda"))
+class_KNN <- KNN_fit
+
+load(here("Project", "modelRuns", "class_log_reg_fit.rda"))
+class_log_reg <- log_reg_fit
+
+load(here("Project", "modelRuns", "class_log_reg_reg_fit.rda"))
+class_log_reg_reg <- log_reg_reg_fit
+
+load(here("Project", "modelRuns", "class_rand_for_fit.rda"))
+class_rand_for <- rand_for_fit
+
+#read in the model runs from the regression code, rename to names that make sense
+load(here("Project", "modelRuns", "reg_boosted_for_fit.rda"))
+reg_boosted_for <- boosted_for_fit
+
+load(here("Project", "modelRuns", "reg_KNN_fit.rda"))
+reg_KNN <- KNN_fit
+
+load(here("Project", "modelRuns", "reg_lin_reg_fit.rda"))
+reg_lin_reg <- lin_reg_fit
+
+load(here("Project", "modelRuns", "reg_lin_reg_reg_fit.rda"))
+reg_lin_reg_reg <- lin_reg_reg_fit
+
+load(here("Project", "modelRuns", "reg_rand_for_fit.rda"))
+reg_rand_for <- rand_for_fit
+```
+
+### Analyzing how the classification models did
+First, let's see how the different models that we tuned performed across their tuning parameters
+```{r}
+#use autoplot to see how the tuned models performed
+autoplot(class_KNN)
+autoplot(class_log_reg_reg)
+autoplot(class_rand_for)
+autoplot(class_boosted_for)
+
+```
+
+Note that there is no plot of how the tuning did for the logistic regression did as we did not tune the logistic regression.
+Starting with K-nearest neighbors it appears that more neighbors lead to a better "area under the curve" (AUC). We should note, however, that accuracy drops between five and six neighbors and again between 10 and 11. It does not drop by a whole lot so I am not too worried. It appears to start leveling out around 11 or 12 so I believe that this number of neighbors may be the best decision.
+The regularized logistic regression provides some interesting insights. The best amount of penalty appears to be a low penalty. However, if we have no regularization, a complete ridge regularization, penalty does not matter and AUC appears to be just about the highest.
+The random forest graph has a lot going on. The most notable trend appears to be that as we increase the number of randomly selected predictors, AUC falls. Thus, having a low number of randomly selected predictors appears to be best. Also, it appears as if generally a higher number of trees is better but as long as you have more than 100 trees, the AUC does not vary a whole lot. Minimum node size does not appear to be super important on AUC.
+The boosted forest plots look a lot different than the random forest which is interesting. There is not as much variation across plots, they are mostly straight lines. Thus, for a boosted forest the number of randomly selected predictors does not appear to have a large influence on model performance. However, learning rate does. It appears that the best learning rate is the highest at 0.1. Also, other than the lowest learning rate, the number of trees in the forest does not matter as well. The only thing that appears to matter is the learning rate.
+
+Let's now see for each model set up, which specifically tuned model performed the best.
+```{r}
+#show the best 10 performing models for each model
+collect_metrics(class_log_reg) #no top 10 because no tuning was conducted
+show_best(class_KNN, n=10, metric='roc_auc')
+show_best(class_log_reg_reg, n=10, metric='roc_auc')
+show_best(class_rand_for, n=10, metric='roc_auc')
+show_best(class_boosted_for, n=10, metric='roc_auc')
+```
+Comparing the best model across models it appears that the K-nearest neighbors performed the worst. Interestingly enough, the regularized logistic regression performed worse than the non-regularized version. The two forest models performed the best with the boosted forest slightly outperforming the random forest. Thus, the best model appears to be the boosted forest with 17 randomly selected predictors, 450 trees, and a learning rate of 0.1.
+Let's test this model on the testing set!
+```{r}
+#select the best boosted forest
+best_class_mod <- select_best(class_boosted_for)
+
+#fit to training set
+final_boosted
+
+```
