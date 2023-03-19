@@ -16,6 +16,7 @@ library(tidyverse)
 library(tidymodels)
 library(vip) #for the variable importance plot
 library(ggplot2)
+library(readxl) #for the MSR2023 excel sheet
 
 #read in the model runs from the classification code, rename to names that make sense
 load(here("Project", "modelRuns", "class_boosted_for_fit.rda"))
@@ -236,6 +237,26 @@ best_reg_testing %>%
 
 ```
 Overall, it looks like the model performed fairly well. It is definitely worth noting that the algorithm does not seem to understand the concept of ranges. For example, it is impossible for you to finish in a place that is negative, which the model did predict a handful of times. All in all, the model did a pretty good job of getting a general range of where people would finish. I think it is worth noting that it appears as if there are more values below the line at low values and more values above the line at high values. I think this is because the model was not great at predicting surprise winners or people who surprised and did well. The model also was not good at predicting when a rider who should have done better than they did disappointing. The model has no way of knowing why they disappointing. For example, it could have been because the favorite crashed which the model would have no way of knowing.
+
+### Predicting MSR
+Let's see how the boosted tree regression model does at predicting Milano Sanremo, one of the first major races of the 2023 calendar that happened on Saturday, March 18th. I only included the rider profile of the favorites for the race.
+```{r}
+#read in the dataset
+MSR2023 <- read_excel(here("Project", "rawData", "MSR2023.xlsx"))
+MSR2023conv <- MSR2023
+
+#remove unnecessary variables and factorize chategorical variables
+MSR2023$ParcourTypeCategorical <- factor(MSR2023$ParcourTypeCategorical)
+MSR2023$WonByCategorical <- factor(MSR2023$WonByCategorical)
+MSR2023 <- MSR2023 %>% 
+  select(-c(raceName, RiderLastName, Team, WinningTimeHours, WinningTimeMinutes, Months, Days, VertMeters, StartlistQualScore))
+
+#evaluate on the boosted tree model
+MSRPred <- augment(final_boosted_reg, MSR2023) %>% 
+  select(Rnk, starts_with(".pred"), RiderName)
+
+head(MSRPred)
+```
 
 ### Conclusion
 Overall, I would say that the models performed better than expected. There are a lot of variables that go into a bike race and the models were able to do the best they could. There were a lot of important aspects to a bike race that was not able to be contained in this model. Some of the factors missing include whether the rider crashed, how the rider woke up feeling, whether the rider was in their top shape, and many more.

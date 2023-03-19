@@ -1,0 +1,12 @@
+---
+title: "Sources"
+author: "Noah Moyer"
+date: "2023-03-19"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Data was obtained for this project from [ProCyclingStats](https://www.procyclingstats.com/). 
