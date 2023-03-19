@@ -259,9 +259,6 @@ MSRPred <- augment(final_boosted_reg, MSR2023) %>%
 head(MSRPred)
 ```
 I don't think the model did that bad! It obviously is not great that it is giving Wout Van Aert a negative race result but putting Van Aert as the favorite for the race is not a bad call, he won it in 2020. Filippo Gana getting such a high prediction finishing result is not unreasonable. While people definitely had him down as an outsider favorite, he has not previously performed at this level in this type of race. A factor that made him a heavier favorite is the fact that his teammate, Tom Pidcock, was ruled out of the race last minute elevating him to sole leader on the team. This means that he had the full resources of the team behind him to push for the win. This factor was not included in our model. Mathieu being third favorite out of this list and then winning is a very reasonable reasonable. He hasn't had any standout performances for the road biking season yet so it was somewhat surprising to see him in such good form and winning the race.
-```{r, include=FALSE}
-knitr::include_graphics("Project/images/MVDPVictoryMSR.jpg")
-```
 
 ### Conclusion
 Overall, I would say that the models performed better than expected. There are a lot of variables that go into a bike race and the models were able to do the best they could. There were a lot of important aspects to a bike race that was not able to be contained in this model. Some of the factors missing include whether the rider crashed, how the rider woke up feeling, whether the rider was in their top shape, and many more.
