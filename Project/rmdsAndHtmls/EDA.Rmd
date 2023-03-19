@@ -50,9 +50,8 @@ ggplot(biking, aes(x=PCSRanking, y=Rnk)) +
   labs(title="Scatter Plot of PCS Ranking versus Finishing Place in Races", x="PCS Ranking", y="Finishing Place")
 ```
   
-  
 There is something curious to note about the finishing position. I would expect the bar chart to have a smooth trend to it (ie the number of finishers in position n never exceeds the number of finishers in position n-1) but this does not appear to be the case. This may have occurred due to removing NAs or may be a data entry error. I will continue to keep an eye out for this in my coming analysis.
-I also produced a scatter plot of PCS ranking versusing finishing place. This graph shows what we would expect. As PCS Ranking, lower finishing places are achieved. It is definitely worth noting, however, that the slope of the spline varies throughout the graph. It is very steep from a PCS ranking of one through about 150. Thus, the high ranked riders win a lot more than even riders ranked slightly lower. After that, the spline smooths out, showing that PCS ranking matters less here.
+I also produced a scatter plot of PCS ranking versus finishing place. This graph shows what we would expect. As a rider has a lower PCS Ranking, lower finishing places are achieved. It is definitely worth noting, however, that the slope of the spline varies throughout the graph. It is very steep from a PCS ranking of one through about 150. Thus, the high ranked riders win a lot more than even riders ranked slightly lower. After that, the spline smooths out, showing that PCS ranking matters less here.
 
 Now, I want to produce some graph about riders who finished in the top 10
 ```{r}
@@ -71,10 +70,10 @@ ggplot(bikingTop10, aes(x=factor(PCSTeamRanking))) +
   labs(title="Bar Plot of Team Ranking that Riders are on who Finished in the Top 10", x="Team Ranking (according to PCS)", y="Count")
 ```
 
-From these two graphs, we can tell that is approximately normally distributed around 28. It is interesting to note that there are not a lot of results at age 34. This is probably due to the fact that there are coincidentially few riders who are performing well at this age.
+The first graph, we can tell that age is approximately normally distributed around 28. It is interesting to note that there are not a lot of results at age 34. This is probably due to the fact that there are coincidentally few riders who are performing well at this age.
 The team ranking graph shows us what we would expect. Better ranked teams have more riders in the top 10 of races. It is interesting to note that this graph is not strictly decreasing. For example, the second ranked team has more finishes in the top 10 than the first ranked team. This shows that races aren't all determined by who finished in the top 10, it is important who won the race as well.
 
-Plot of race profile
+Plots of race profile
 ```{r}
 #Race speed versus Startlist quality
 ggplot(raceProfile, aes(x=StartlistQualScore, y=AvgSpeedWinner)) +
@@ -90,7 +89,7 @@ ggplot(raceProfile, aes(x=factor(ParcourTypeCategorical), y=AvgSpeedWinner)) +
 
 For the scatterplot, there is a weak positive association. I would hesitate to conclude that startlist quality increases the speed of races. There may be some association with speed and startlist quality but it is a weak association.
 
-For the boxplot, race speed varies a lot by the type of race. Note, that for most race names, the first word indicates the general parcour of the race while the second word indicates how the race finished (ie HillFlat would be a hilly race that ended flat while FlatHill would be a flat race that ended with a hill).
+For the boxplot, race speed varies a lot by the type of race. Note that for most race names, the first word indicates the general profile of the race while the second word indicates how the race finished (ie HillFlat would be a hilly race that ended flat while FlatHill would be a flat race that ended with a hill).
 
 ### Correlation
 Let's test out correlation in our dataset.
@@ -108,7 +107,7 @@ cor_results %>%
   theme(axis.text.x=element_text(angle=-90))
 ```
 
-Overall, there are very few variables with super high correlation. A few variables have high correlation as expected. For example, winningTimeHours and winningTimeMinutes are highly correlated because winningTimeHours was used to calculate winningTimeMinutes. Also, on PCS race ranking is a function of startlist quality score, so it makes sense that these two variables have very high correlation. The same is true for vert meters and profile score. Some other interesting correlations exist in the high correlation between the number of grand tours raced and the age of the rider. It makes sense for there to be a high positive correlation here but for the value to be so high is surprising. Also, winningTimeMin and distance having a correlation of 0.97 is notable. It makes sense that these two are highly correlated but to have a correlation of almost one is notable. It seems like other factors such as vertical meters or even how the riders raced the race would lower the correlation slightly. I am very happy, however, that I have so many variables that have relatively low correlation that I get to play with in my analysis.
+Overall, there are very few variables with super high correlation. A few variables have high correlation as expected. For example, winningTimeHours and winningTimeMin are highly correlated because winningTimeHours was used to calculate winningTimeMin. Also, on PCS race ranking is a function of startlist quality score so it makes sense that RaceRanking and StartlistQualScore have very high correlation. The same is true for VertMeters and ProfileScore. Some other interesting high correlations exist such as between the number of grand tours raced and the age of the rider. It makes sense for there to be a high positive correlation here but for the value to be so high is surprising. Also, winningTimeMin and distance having a correlation of 0.97 is notable. It makes sense that these two are highly correlated but to have a correlation of almost one is notable. It seems like other factors such as vertical meters or even how the riders raced the race would lower the correlation slightly. I am very happy, however, that I have so many variables that have relatively low correlation that I get to play with in my analysis.
 
 ### Split data into regression dataset and classification dataset
 I am unsure if my data will work better as a regression dataset or as a classification dataset. Thus, I have decided that I am going to try both. In bike races, riders compete heavily for the top 10 but after that riders are not overly worried about whether they finish in 42nd or in 72nd. Thus, for my classification dataset I am going to split the results into a top10 classification and then a notTop10 classification. I will then run models on this classification dataset. The code below is how I created the new classification dataset.
@@ -128,4 +127,4 @@ ggplot(bikingClass, aes(x=factor(Rnk))) +
 write_xlsx(bikingClass, here("Project", "rawData", "bikingClass.xlsx"))
 ```
 
-I will need to conduct some upsampling so that my class sizes are closer to equal. Maybe I will upsample to an over_ratio of 0.5
+I will need to conduct some upsampling so that my class sizes are closer to equal. I will upsample to an over_ratio of 0.5

@@ -19,9 +19,8 @@ library(visdat) #for visualizing missing data
 ```
 
 ### Read in data
-First, we read in all of the various specific race result's data and merge the datasets to create our final dataset.
-```{r}
-
+First, we read in all of the various specific race result data and merge the datasets to create our final dataset.
+```{r, message=FALSE}
 Omloop <- read_excel(here("Project", "rawData", "AllRaceResults", "2_Omloop.xlsx"))
 Omloop$raceName <- "Omloop"
 Omloop <- select(Omloop, Rnk, Rider, raceName)
@@ -627,8 +626,8 @@ Now, we need to figure out how to deal with our NAs. Let's visualize the missing
 vis_miss(bikingDF)
 ```
 
-Overall, I have a very small amount of missing data. The most significant categories that were missing data was weight and height but even for these the percentage missing is at 2% and 1% respectively. I know from data collection that riders who were missing weight and height values generally did not play huge factors in races in general. There are lots of racers who fall into the category of not being a factor in races so losing these riders from my dataset will not be a big deal. The same goes with missing values in team, PCSRanking, and PCSTeamRanking. Thus, I will now remove all missing value's observations.
-I am also going to remove all DNF, DNS, or OTL observations. The reasons behind recieving a "did not finish", "did not start", or "outside of time limit" are beyond the scope of this investigation. This also means that the Rnk column can be numeric.
+Overall, I have a very small amount of missing data. The most significant categories that were missing data was weight and height but even for these the percentage missing is at 2% and 1% respectively. I know from data collection that riders who were missing weight and height values generally did not play huge factors in races in general. There are lots of racers who fall into the category of not being a factor in races so losing these riders from my dataset will not be a big deal. The same goes with missing values in team, PCSRanking, and PCSTeamRanking. Thus, I will now remove all missing value observations.
+I am also going to remove all DNF, DNS, or OTL observations. The reasons behind receiving a "did not finish", "did not start", or "outside of time limit" are beyond the scope of this investigation. This also means that the Rnk column can be numeric.
 
 ```{r}
 #convert Rnk column from character entries to numeric entries

@@ -9,4 +9,4 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-Data was obtained for this project from [ProCyclingStats](https://www.procyclingstats.com/). 
+Data was obtained for this project from [ProCyclingStats](https://www.procyclingstats.com/). I downloaded the data and compiled it into the bikingClass spreadsheet and the raceProfile spreadsheet. I then downloaded all the race results and merged these three spreadsheets together to form a final dataframe.

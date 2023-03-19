@@ -9,7 +9,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-Note: Much of the code is the same as the classModels.Rmd. Commentary on the code has been removed where it would be redundent. The major difference in this code is that the regressor variable is no longer chatagorical, but is numeric. The response variable is simply the place the rider finished as a number. Commentary is still included when the code is novel.
+Note: Much of the code is the same as the classModels.Rmd. Commentary on the code has been removed where it would be redundant. The major difference in this code is that the response variable is no longer categorical, but is numeric. The response variable is simply the place the rider finished as a number. Commentary is still included when the code is novel.
 
 ### Packages and read in dataset
 ```{r}
@@ -20,6 +20,7 @@ library(tidyverse)
 library(glmnet)
 library(here)
 library(readxl)
+library(dplyr)
 tidymodels_prefer()
 bikeReg <- read_excel(here("Project", "rawData", "bikingDF.xlsx"))
 ```
