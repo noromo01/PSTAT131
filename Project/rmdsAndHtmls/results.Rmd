@@ -14,6 +14,8 @@ knitr::opts_chunk$set(echo = TRUE)
 library(here)
 library(tidyverse)
 library(tidymodels)
+library(vip) #for the variable importance plot
+library(ggplot2)
 
 #read in the model runs from the classification code, rename to names that make sense
 load(here("Project", "modelRuns", "class_boosted_for_fit.rda"))
@@ -48,6 +50,54 @@ load(here("Project", "modelRuns", "reg_rand_for_fit.rda"))
 reg_rand_for <- rand_for_fit
 ```
 
+```{r, include=FALSE}
+#run some old code so we can use the workflow
+#class
+bikeClass <- read_excel(here("Project", "rawData", "bikingClass.xlsx"))
+bikeClass$Rnk <- factor(bikeClass$Rnk)
+bikeClass$ParcourTypeCategorical <- factor(bikeClass$ParcourTypeCategorical)
+bikeClass$WonByCategorical <- factor(bikeClass$WonByCategorical)
+bikeClass <- bikeClass %>% 
+  select(-c(raceName, RiderName, RiderLastName, Team, WinningTimeHours, WinningTimeMinutes, Months, Days, VertMeters, StartlistQualScore))
+set.seed(110)
+bikeSplitClass <- initial_split(bikeClass, prop=0.75, strata="Rnk")
+bikeTrainClass <- training(bikeSplitClass)
+bikeTestClass <- testing(bikeSplitClass)
+bikeRecipeClass <- recipe(Rnk~., data=bikeTrainClass) %>% 
+  step_dummy(all_nominal_predictors()) %>%
+  step_normalize(all_predictors()) %>%
+  step_upsample(Rnk, over_ratio=0.5)
+boosted_for_class <- boost_tree(mtry=tune(),
+                          trees=tune(),
+                          learn_rate=tune()) %>% 
+  set_engine("xgboost") %>% 
+  set_mode("classification")
+boosted_for_wkflw_class <- workflow() %>% 
+  add_model(boosted_for_class) %>% 
+  add_recipe(bikeRecipeClass)
+#reg
+bikeReg <- read_excel(here("Project", "rawData", "bikingDF.xlsx"))
+bikeReg$ParcourTypeCategorical <- factor(bikeReg$ParcourTypeCategorical)
+bikeReg$WonByCategorical <- factor(bikeReg$WonByCategorical)
+bikeReg <- bikeReg %>% 
+  select(-c(raceName, RiderName, RiderLastName, Team, WinningTimeHours, WinningTimeMinutes, Months, Days, VertMeters, StartlistQualScore))
+set.seed(110)
+bikeSplitReg <- initial_split(bikeReg, prop=0.75, strata="Rnk")
+bikeTrainReg <- training(bikeSplitReg)
+bikeTestReg <- testing(bikeSplitReg)
+bikeRecipeReg <- recipe(Rnk~., data=bikeTrainReg) %>% 
+  step_dummy(all_nominal_predictors()) %>%
+  step_normalize(all_predictors())
+boosted_for_reg <- boost_tree(mtry=tune(),
+                          trees=tune(),
+                          learn_rate=tune()) %>% 
+  set_engine("xgboost") %>% 
+  set_mode("regression")
+boosted_for_wkflw_reg <- workflow() %>% 
+  add_model(boosted_for_reg) %>% 
+  add_recipe(bikeRecipeReg)
+```
+
 ### Analyzing how the classification models did
 First, let's see how the different models that we tuned performed across their tuning parameters
 ```{r}
@@ -78,9 +128,120 @@ Comparing the best model across models it appears that the K-nearest neighbors p
 Let's test this model on the testing set!
 ```{r}
 #select the best boosted forest
-best_class_mod <- select_best(class_boosted_for)
+best_class_mod_class <- select_best(class_boosted_for, metric='roc_auc')
 
 #fit to training set
-final_boosted
+final_boosted_class <- finalize_workflow(boosted_for_wkflw, best_class_mod_class) %>% 
+  fit(bikeTrain)
+
+#evaluate on the testing set
+best_class_testing <- augment(final_boosted_class, bikeTest) %>% 
+  select(Rnk, starts_with(".pred"))
+
+#evaluate the model
+roc_auc(best_class_testing, truth=Rnk, .pred_notTop10)
+```
+
+The model worked even better than on our training set! Let's see the variable importance plot.
+
+```{r}
+#variable importance plot
+final_boosted_class %>%
+  extract_fit_parsnip() %>% 
+  vip(num_features=26)
+```
+This variable importance plot is super interesting. It makes sense that PCSRanking would be head and shoulders the best predictor of race results. This is the overall ranking of how good a rider is so obviously this would be a good predictor of rider performance. It makes sense that some of the next best predictors are the various components that say how good a rider is. It is interesting to see and makes me feel good about my model set up that the important variables are a mix from the rider profile dataset and the race profile dataset. It shows that the race set up and the individual rider play a major roll in how the race is won (or how riders get in the top 10). I am also happy to see that while there are definitely certain variables that are more important to others, all variables had some role to play
+Let's look at the ROC curve.
+```{r}
+#plot the ROC curve.
+roc_curve(best_class_testing, truth=Rnk, .pred_notTop10) %>% 
+  autoplot()
 
 ```
+The ROC curve looks about as we would expect. It is by no means perfect but it does a lot better than just random guessing.
+Let's create a confusion matrix next.
+```{r}
+#confusion matrix
+conf_mat(best_class_testing, truth=Rnk, .pred_class) %>% 
+  autoplot(type="heatmap")
+
+```
+
+The confusion matrix reveals a lot about this model. It looks like the model got very good at predicting when a rider would not finish in the top 10 and was very hesitant to guess that a rider would finish in the top 10. The model did have a pretty low error rate when it comes to predicting a rider to finish in the top 10 given that the rider did finish in the top 10 (note that when I say "pretty low" I mean that it has a below 50% error rate, which is not great). This definitely reveales that the model is not doing as well as the ROC says it was doing.
+
+Now to see how the regression models did.
+
+### Analyzing how the regression models did
+
+First, let's see how the different models that we tuned performed across their tuning parameters
+```{r}
+#use autoplot to see how the tuned models performed
+autoplot(reg_KNN)
+autoplot(reg_lin_reg_reg)
+autoplot(reg_rand_for)
+autoplot(reg_boosted_for)
+
+```
+My initial reaction is that throughout we have a very low r-squared value. It appears that none of our models did a very good job at predicting race outcome.
+For k-nearest neighbors the models follow the same trend that the KNN model did for the classification models, the more neighbors the better the model performed.
+For our regularized linear regression, we see another similar trend. Zero regularization, a complete ridge regression, seems to perform best across penalties. As regularization increases, the best models are those with a low penalty.
+Our random forest looks considerably different. First off, the number of trees and the number of nodes at a terminal branch does not appear to affect our r-squared value. The number of predictors also does not vary a whole lot as long as you do not pick two. Number of predictors greater than two works almost equally well across models.
+Our boosted forest shows some interesting results as well. The best r-squared values occur when our learning rate is 0.1. With a learning rate of 0.1, the models with more trees appeared to perform better. We also see a similar trend to the trend in the random forest with the number of randomly selected predictors. As long as the number of predictors is greater than two, they all performed somewhat equally well.
+
+Let's now see for each model set up, which specifically tuned model performed the best.
+```{r}
+#show the best 10 performing models for each model
+collect_metrics(reg_lin_reg) #no top 10 because no tuning was conducted
+show_best(reg_KNN, n=10, metric='rsq')
+show_best(reg_lin_reg_reg, n=10, metric='rsq')
+show_best(reg_rand_for, n=10, metric='rsq')
+show_best(reg_boosted_for, n=10, metric='rsq')
+```
+Unlike the classification models, the K-nearest neighbors model outperformed the regularized and unregularized linear regression. The best regularized linear regression slightly outperformed the un-tuned linear regression. Similar to the classification models, the best models were the random forest models. It is also notable just by how much the random forest models out performed the other models. Once again, the boosted forest slightly outperformed the normal random forest. Thus, we will use this model in the rest of our analysis.
+
+Let's test this model on the testing set!
+```{r}
+#select the best boosted forest
+best_class_mod_reg <- select_best(reg_boosted_for, metric='rsq')
+
+#fit to training set
+final_boosted_reg <- finalize_workflow(boosted_for_wkflw_reg, best_class_mod_reg) %>% 
+  fit(bikeTrainReg)
+
+#evaluate on the testing set
+best_reg_testing <- augment(final_boosted_reg, bikeTestReg) %>% 
+  select(Rnk, starts_with(".pred"))
+
+#evaluate the model
+rsq(best_reg_testing, truth=Rnk, estimate=.pred)
+```
+
+The model worked about the same as our testing set. While it did not perform the best, we were asking the model to do a lot so I am not super dissapointed in this result.
+
+```{r}
+#variable importance plot
+final_boosted_reg %>%
+  extract_fit_parsnip() %>% 
+  vip(num_features=26)
+```
+I am interested to see that the variable importance plot looks somewhat different than the variable importance plot from the classification data. We have the same top performers but in addition to the drop from PCSRanking to ClimberScore there is another drop from GCScore to NumFinished. This means that the model was using GCScore and ClimberScore more than just PCSRanking. In fact, PCSRanking dropped from having an importance of around 0.27 to having an importance of 0.17. 
+
+Let's create a predicted vs actual value plot
+```{r}
+best_reg_testing %>% 
+  ggplot(aes(x=.pred, y=Rnk)) +
+  geom_point(alpha=0.4, size=0.5) +
+  geom_abline(lty=2) +
+  labs(title="Predicted and Actual Values of Rank", x="Prediction", y="Actual Value")
+
+```
+Overall, it looks like the model performed fairly well. It is definitely worth noting that the algorithm does not seem to understand the concept of ranges. For example, it is impossible for you to finish in a place that is negative, which the model did predict a handful of times. All in all, the model did a pretty good job of getting a general range of where people would finish. I think it is worth noting that it appears as if there are more values below the line at low values and more values above the line at high values. I think this is because the model was not great at predicting surprise winners or people who surprised and did well. The model also was not good at predicting when a rider who should have done better than they did disappointing. The model has no way of knowing why they disappointing. For example, it could have been because the favorite crashed which the model would have no way of knowing.
+
+Conclusion thoughts
+- Confusion matrix: maybe it would be better if we did more classifications that weren't so unweighted to force the model to focus more on specific positions rather than just focussing on getting good at predicting not the top 10
+- Crashes and unpredictability
+- Should have potentially upscaled differently
+- Reg performance
+- Compare reg to class
+- Change in importance of PCSRanking
+- Try to test on MSR

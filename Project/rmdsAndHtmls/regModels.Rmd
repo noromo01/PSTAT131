@@ -98,8 +98,8 @@ lin_reg_reg_grid <- grid_regular(penalty(range=c(0,1),
                                  mixture(range=c(0,1)),
                                  levels=5)
 #KNN grid
-KNN_grid <- grid_regular(neighbors(range=c(2,8)),
-                         levels=7)
+KNN_grid <- grid_regular(neighbors(range=c(2,12)),
+                         levels=11)
 #random forest grid
 rand_for_grid <- grid_regular(mtry(range=c(1,16)),
                               trees(range=c(100,800)),
@@ -138,7 +138,7 @@ rand_for_wkflw <- workflow() %>%
   add_recipe(bikeRecipe)
 
 #workflow for the boosted tree
-boosted_for_wkflw <- workflow () %>% 
+boosted_for_wkflw <- workflow() %>% 
   add_model(boosted_for) %>% 
   add_recipe(bikeRecipe)
 ```
@@ -150,6 +150,8 @@ lin_reg_fit <- fit_resamples(
   object=lin_reg_wkflw,
   resamples=bikeFold
 )
+#save the model
+save(lin_reg_fit, file=here("Project", "modelRuns", "reg_lin_reg_fit.rda"))
 
 #model fit for regularized regression
 lin_reg_reg_fit <- tune_grid(
@@ -158,6 +160,7 @@ lin_reg_reg_fit <- tune_grid(
   grid=lin_reg_reg_grid,
   control=control_grid(verbose=TRUE)
 )
+save(lin_reg_reg_fit, file=here("Project", "modelRuns", "reg_lin_reg_reg_fit.rda"))
 
 #model fit for k-nearest-neighbors
 KNN_fit <- tune_grid(
@@ -166,6 +169,7 @@ KNN_fit <- tune_grid(
   grid=KNN_grid,
   control=control_grid(verbose=TRUE)
 )
+save(KNN_fit, file=here("Project", "modelRuns", "reg_KNN_fit.rda"))
 
 #model fit for the random forest
 rand_for_fit <- tune_grid(
@@ -174,6 +178,7 @@ rand_for_fit <- tune_grid(
   grid=rand_for_grid,
   control=control_grid(verbose=TRUE)
 )
+save(rand_for_fit, file=here("Project", "modelRuns", "reg_rand_for_fit.rda"))
 
 #model fit for boosted tree
 boosted_for_fit <- tune_grid(
@@ -182,12 +187,6 @@ boosted_for_fit <- tune_grid(
   grid=boosted_for_grid,
   control=control_grid(verbose=TRUE)
 )
-
-#save the models
-save(lin_reg_fit, file=here("Project", "modelRuns", "reg_lin_reg_fit.rda"))
-save(lin_reg_reg_fit, file=here("Project", "modelRuns", "reg_lin_reg_reg_fit.rda"))
-save(KNN_fit, file=here("Project", "modelRuns", "reg_KNN_fit.rda"))
-save(rand_for_fit, file=here("Project", "modelRuns", "reg_rand_for_fit.rda"))
 save(boosted_for_fit, file=here("Project", "modelRuns", "reg_boosted_for_fit.rda"))
 ```
 

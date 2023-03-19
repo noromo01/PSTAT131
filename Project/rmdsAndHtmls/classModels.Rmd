@@ -172,7 +172,7 @@ rand_for_wkflw <- workflow() %>%
   add_recipe(bikeRecipe)
 
 #workflow for the boosted tree
-boosted_for_wkflw <- workflow () %>% 
+boosted_for_wkflw <- workflow() %>% 
   add_model(boosted_for) %>% 
   add_recipe(bikeRecipe)
 ```
@@ -184,6 +184,7 @@ log_reg_fit <- fit_resamples(
   object=log_reg_wkflw,
   resamples=bikeFold
 )
+#save the model
 save(log_reg_fit, file=here("Project", "modelRuns", "class_log_reg_fit.rda"))
 
 #model fit for regularized regression
@@ -221,10 +222,4 @@ boosted_for_fit <- tune_grid(
   control=control_grid(verbose=TRUE)
 )
 save(boosted_for_fit, file=here("Project", "modelRuns", "class_boosted_for_fit.rda"))
-
-#save the models
-
-
-
-
 ```
