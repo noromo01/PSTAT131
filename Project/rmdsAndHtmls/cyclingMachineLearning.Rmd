@@ -1,11 +1,666 @@
 ---
-title: "cyclingMachineLearning"
+title: "Cycling Machine Learning Project"
 author: "Noah Moyer"
 date: "2023-03-19"
-output: html_document
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: show
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Packages
+Below are all packages used for the project.
+```{r}
+library(here)
+library(readxl)
+library(writexl)
+library(dplyr) #for pipe function
+library(visdat) #for visualizing missing data
+```
+
+## Introduction
+In this project, I will try to predict race results from a wide variety of predictors for the 2022 Mens World Tour in professional road cycling. Road cycling is notoriously unpredictable so it will be interesting to see how a machine learning algorithm tackles this problem.
+Predictors will be divided into two general categories. The first category is rider profile. Rider profile includes variables such as rider age, rider weight, and rider ranking in a variety of different strengths. In pro cycling, riders generally specialize. There are riders who are designated sprinters. These riders have a very good 30 second power but are generally larger and do not have good power over longer ranges. This means that these riders are good at sprinting to a win in a flat race but get dropped when there is a hill. There are other riders who are very light and have good long power. These riders are excellent at climbing but cannot compete against the sprinters. There are many riders who specialize somewhere between a sprinter and a climber. The other category of predictor is race profile. This includes attributes such as race length, vertical meters covered, race ranking, and more. Throughout the year, there are certain races that rank higher than other races. For example, most people have heard of the Tour de France but only intense cycling fans know of races such as the Bemer Classic. These higher quality races have better riders starting at them and are thus more prestigious to win raising the level of competition. A rider who could do well at the Bemer Classic might struggle to do well at the Tour de France. By combining rider profile and racer profile, I hope to create an algorithm that is able to provide insights that are missed by most cycling commentators.
+Since races are so unpredictable, there are many variables that are difficult to quantify and are thus missing from this analysis. For example, there is nothing to quantify what happened in a race known as Strade Bianche in 2022 when strong winds blew half of the competitors off of the course causing some spectacular crashes.  
+![A series of unfortunate events](C:/Users/noahr/Desktop/PSTAT131/Project/images/stradecrash1.jpg)
+![](C:/Users/noahr/Desktop/PSTAT131/Project/images/stradecrash2.jpg)
+![](C:/Users/noahr/Desktop/PSTAT131/Project/images/stradecrash3.jpg)
+![](C:/Users/noahr/Desktop/PSTAT131/Project/images/stradecrash4.jpg)
+(all riders were relatively ok)
+Let's see how the models do.
+
+## Data Cleaning
+
+### Read in data
+First, we read in all of the various specific race result data and merge the datasets to create our final dataset.
+```{r, message=FALSE}
+Omloop <- read_excel(here("Project", "rawData", "AllRaceResults", "2_Omloop.xlsx"))
+Omloop$raceName <- "Omloop"
+Omloop <- select(Omloop, Rnk, Rider, raceName)
+
+Strade <- read_excel(here("Project", "rawData", "AllRaceResults", "3_strade.xlsx"))
+Strade$raceName <- "Strade"
+
+#use this to combine datasets
+raceResults <- select(Strade, Rnk, Rider, raceName) %>% rbind(Omloop)
+
+MSR <- read_excel(here("Project", "rawData", "AllRaceResults", "6_MSR.xlsx"))
+MSR$raceName <- "MSR"
+raceResults <- select(MSR, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+BruggeDePanne <- read_excel(here("Project", "rawData", "AllRaceResults", "8_BruggeDePanne.xlsx"))
+BruggeDePanne$raceName <- "BruggeDePanne"
+raceResults <- select(BruggeDePanne, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+E3 <- read_excel(here("Project", "rawData", "AllRaceResults", "9_E3.xlsx"))
+E3$raceName <- "E3"
+raceResults <- select(E3, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+GentWevelgem <- read_excel(here("Project", "rawData", "AllRaceResults", "10_GentWevelgem.xlsx"))
+GentWevelgem$raceName <- "GentWevelgem"
+raceResults <- select(GentWevelgem, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+DwarsDoor <- read_excel(here("Project", "rawData", "AllRaceResults", "11_DwarsDoor.xlsx"))
+DwarsDoor$raceName <- "DwarsDoor"
+raceResults <- select(DwarsDoor, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+RVV <- read_excel(here("Project", "rawData", "AllRaceResults", "12_RVV.xlsx"))
+RVV$raceName <- "RVV"
+raceResults <- select(RVV, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+AmstelGold <- read_excel(here("Project", "rawData", "AllRaceResults", "14_AmstelGold.xlsx"))
+AmstelGold$raceName <- "AmstelGold"
+raceResults <- select(AmstelGold, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+ParisRoubaix <- read_excel(here("Project", "rawData", "AllRaceResults", "15_ParisRoubaix.xlsx"))
+ParisRoubaix$raceName <- "ParisRoubaix"
+raceResults <- select(ParisRoubaix, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+Fleche <- read_excel(here("Project", "rawData", "AllRaceResults", "16_Fleche.xlsx"))
+Fleche$raceName <- "Fleche"
+raceResults <- select(Fleche, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+LBL <- read_excel(here("Project", "rawData", "AllRaceResults", "17_LBL.xlsx"))
+LBL$raceName <- "LBL"
+raceResults <- select(LBL, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+EschbornFrankfurt <- read_excel(here("Project", "rawData", "AllRaceResults", "19_EschbornFrankfurt.xlsx"))
+EschbornFrankfurt$raceName <- "EschbornFrankfurt"
+raceResults <- select(EschbornFrankfurt, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+SanSebastian <- read_excel(here("Project", "rawData", "AllRaceResults", "24_SanSebastian.xlsx"))
+SanSebastian$raceName <- "SanSebastian"
+raceResults <- select(SanSebastian, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+Bemer <- read_excel(here("Project", "rawData", "AllRaceResults", "27_Bemer.xlsx"))
+Bemer$raceName <- "Bemer"
+raceResults <- select(Bemer, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+Bretagne <- read_excel(here("Project", "rawData", "AllRaceResults", "28_Bretagne.xlsx"))
+Bretagne$raceName <- "Bretagne"
+raceResults <- select(Bretagne, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+Quebec <- read_excel(here("Project", "rawData", "AllRaceResults", "29_Quebec.xlsx"))
+Quebec$raceName <- "Quebec"
+raceResults <- select(Quebec, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+Montreal <- read_excel(here("Project", "rawData", "AllRaceResults", "30_Montreal.xlsx"))
+Montreal$raceName <- "Montreal"
+raceResults <- select(Montreal, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+Lombardia <- read_excel(here("Project", "rawData", "AllRaceResults", "31_Lombardia.xlsx"))
+Lombardia$raceName <- "Lombardia"
+raceResults <- select(Lombardia, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+UAEStage1 <- read_excel(here("Project", "rawData", "AllRaceResults", "1_UAE", "UAEStage1.xlsx"))
+UAEStage1$raceName <- "UAEStage1"
+raceResults <- select(UAEStage1, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+UAEStage2 <- read_excel(here("Project", "rawData", "AllRaceResults", "1_UAE", "UAEStage2.xlsx"))
+UAEStage2$raceName <- "UAEStage2"
+raceResults <- select(UAEStage2, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+UAEStage3 <- read_excel(here("Project", "rawData", "AllRaceResults", "1_UAE", "UAEStage3.xlsx"))
+UAEStage3$raceName <- "UAEStage3"
+raceResults <- select(UAEStage3, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+UAEStage4 <- read_excel(here("Project", "rawData", "AllRaceResults", "1_UAE", "UAEStage4.xlsx"))
+UAEStage4$raceName <- "UAEStage4"
+raceResults <- select(UAEStage4, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+UAEStage5 <- read_excel(here("Project", "rawData", "AllRaceResults", "1_UAE", "UAEStage5.xlsx"))
+UAEStage5$raceName <- "UAEStage5"
+raceResults <- select(UAEStage5, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+UAEStage6 <- read_excel(here("Project", "rawData", "AllRaceResults", "1_UAE", "UAEStage6.xlsx"))
+UAEStage6$raceName <- "UAEStage6"
+raceResults <- select(UAEStage6, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+UAEStage7 <- read_excel(here("Project", "rawData", "AllRaceResults", "1_UAE", "UAEStage7.xlsx"))
+UAEStage7$raceName <- "UAEStage7"
+raceResults <- select(UAEStage7, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+ParisNiceStage1 <- read_excel(here("Project", "rawData", "AllRaceResults", "4_ParisNice", "ParisNiceStage1.xlsx"))
+ParisNiceStage1$raceName <- "ParisNiceStage1"
+raceResults <- select(ParisNiceStage1, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+ParisNiceStage2 <- read_excel(here("Project", "rawData", "AllRaceResults", "4_ParisNice", "ParisNiceStage2.xlsx"))
+ParisNiceStage2$raceName <- "ParisNiceStage2"
+raceResults <- select(ParisNiceStage2, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+ParisNiceStage3 <- read_excel(here("Project", "rawData", "AllRaceResults", "4_ParisNice", "ParisNiceStage3.xlsx"))
+ParisNiceStage3$raceName <- "ParisNiceStage3"
+raceResults <- select(ParisNiceStage3, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+ParisNiceStage4 <- read_excel(here("Project", "rawData", "AllRaceResults", "4_ParisNice", "ParisNiceStage4.xlsx"))
+ParisNiceStage4$raceName <- "ParisNiceStage4"
+raceResults <- select(ParisNiceStage4, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+ParisNiceStage5 <- read_excel(here("Project", "rawData", "AllRaceResults", "4_ParisNice", "ParisNiceStage5.xlsx"))
+ParisNiceStage5$raceName <- "ParisNiceStage5"
+raceResults <- select(ParisNiceStage5, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+ParisNiceStage6 <- read_excel(here("Project", "rawData", "AllRaceResults", "4_ParisNice", "ParisNiceStage6.xlsx"))
+ParisNiceStage6$raceName <- "ParisNiceStage6"
+raceResults <- select(ParisNiceStage6, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+ParisNiceStage7 <- read_excel(here("Project", "rawData", "AllRaceResults", "4_ParisNice", "ParisNiceStage7.xlsx"))
+ParisNiceStage7$raceName <- "ParisNiceStage7"
+raceResults <- select(ParisNiceStage7, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+ParisNiceStage8 <- read_excel(here("Project", "rawData", "AllRaceResults", "4_ParisNice", "ParisNiceStage8.xlsx"))
+ParisNiceStage8$raceName <- "ParisNiceStage8"
+raceResults <- select(ParisNiceStage8, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+TirrenoStage1 <- read_excel(here("Project", "rawData", "AllRaceResults", "5_Tirreno", "TirrenoStage1.xlsx"))
+TirrenoStage1$raceName <- "TirrenoStage1"
+raceResults <- select(TirrenoStage1, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+TirrenoStage2 <- read_excel(here("Project", "rawData", "AllRaceResults", "5_Tirreno", "TirrenoStage2.xlsx"))
+TirrenoStage2$raceName <- "TirrenoStage2"
+raceResults <- select(TirrenoStage2, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+TirrenoStage3 <- read_excel(here("Project", "rawData", "AllRaceResults", "5_Tirreno", "TirrenoStage3.xlsx"))
+TirrenoStage3$raceName <- "TirrenoStage3"
+raceResults <- select(TirrenoStage3, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+TirrenoStage4 <- read_excel(here("Project", "rawData", "AllRaceResults", "5_Tirreno", "TirrenoStage4.xlsx"))
+TirrenoStage4$raceName <- "TirrenoStage4"
+raceResults <- select(TirrenoStage4, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+TirrenoStage5 <- read_excel(here("Project", "rawData", "AllRaceResults", "5_Tirreno", "TirrenoStage5.xlsx"))
+TirrenoStage5$raceName <- "TirrenoStage5"
+raceResults <- select(TirrenoStage5, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+TirrenoStage6 <- read_excel(here("Project", "rawData", "AllRaceResults", "5_Tirreno", "TirrenoStage6.xlsx"))
+TirrenoStage6$raceName <- "TirrenoStage6"
+raceResults <- select(TirrenoStage6, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+TirrenoStage7 <- read_excel(here("Project", "rawData", "AllRaceResults", "5_Tirreno", "TirrenoStage7.xlsx"))
+TirrenoStage7$raceName <- "TirrenoStage7"
+raceResults <- select(TirrenoStage7, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+CatalunyaStage1 <- read_excel(here("Project", "rawData", "AllRaceResults", "7_Catalunya", "CatalunyaStage1.xlsx"))
+CatalunyaStage1$raceName <- "CatalunyaStage1"
+raceResults <- select(CatalunyaStage1, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+CatalunyaStage2 <- read_excel(here("Project", "rawData", "AllRaceResults", "7_Catalunya", "CatalunyaStage2.xlsx"))
+CatalunyaStage2$raceName <- "CatalunyaStage2"
+raceResults <- select(CatalunyaStage2, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+CatalunyaStage3 <- read_excel(here("Project", "rawData", "AllRaceResults", "7_Catalunya", "CatalunyaStage3.xlsx"))
+CatalunyaStage3$raceName <- "CatalunyaStage3"
+raceResults <- select(CatalunyaStage3, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+CatalunyaStage4 <- read_excel(here("Project", "rawData", "AllRaceResults", "7_Catalunya", "CatalunyaStage4.xlsx"))
+CatalunyaStage4$raceName <- "CatalunyaStage4"
+raceResults <- select(CatalunyaStage4, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+CatalunyaStage5 <- read_excel(here("Project", "rawData", "AllRaceResults", "7_Catalunya", "CatalunyaStage5.xlsx"))
+CatalunyaStage5$raceName <- "CatalunyaStage5"
+raceResults <- select(CatalunyaStage5, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+CatalunyaStage6 <- read_excel(here("Project", "rawData", "AllRaceResults", "7_Catalunya", "CatalunyaStage6.xlsx"))
+CatalunyaStage6$raceName <- "CatalunyaStage6"
+raceResults <- select(CatalunyaStage6, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+CatalunyaStage7 <- read_excel(here("Project", "rawData", "AllRaceResults", "7_Catalunya", "CatalunyaStage7.xlsx"))
+CatalunyaStage7$raceName <- "CatalunyaStage7"
+raceResults <- select(CatalunyaStage7, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+ItzuliaStage1 <- read_excel(here("Project", "rawData", "AllRaceResults", "13_Itzulia", "ItzuliaStage1.xlsx"))
+ItzuliaStage1$raceName <- "ItzuliaStage1"
+raceResults <- select(ItzuliaStage1, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+ItzuliaStage2 <- read_excel(here("Project", "rawData", "AllRaceResults", "13_Itzulia", "ItzuliaStage2.xlsx"))
+ItzuliaStage2$raceName <- "ItzuliaStage2"
+raceResults <- select(ItzuliaStage2, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+ItzuliaStage3 <- read_excel(here("Project", "rawData", "AllRaceResults", "13_Itzulia", "ItzuliaStage3.xlsx"))
+ItzuliaStage3$raceName <- "ItzuliaStage3"
+raceResults <- select(ItzuliaStage3, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+ItzuliaStage4 <- read_excel(here("Project", "rawData", "AllRaceResults", "13_Itzulia", "ItzuliaStage4.xlsx"))
+ItzuliaStage4$raceName <- "ItzuliaStage4"
+raceResults <- select(ItzuliaStage4, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+ItzuliaStage5 <- read_excel(here("Project", "rawData", "AllRaceResults", "13_Itzulia", "ItzuliaStage5.xlsx"))
+ItzuliaStage5$raceName <- "ItzuliaStage5"
+raceResults <- select(ItzuliaStage5, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+ItzuliaStage6 <- read_excel(here("Project", "rawData", "AllRaceResults", "13_Itzulia", "ItzuliaStage6.xlsx"))
+ItzuliaStage6$raceName <- "ItzuliaStage6"
+raceResults <- select(ItzuliaStage6, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+RomandiePrologue <- read_excel(here("Project", "rawData", "AllRaceResults", "18_Romandie", "RomandiePrologue.xlsx"))
+RomandiePrologue$raceName <- "RomandiePrologue"
+raceResults <- select(RomandiePrologue, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+RomandieStage1 <- read_excel(here("Project", "rawData", "AllRaceResults", "18_Romandie", "RomandieStage1.xlsx"))
+RomandieStage1$raceName <- "RomandieStage1"
+raceResults <- select(RomandieStage1, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+RomandieStage2 <- read_excel(here("Project", "rawData", "AllRaceResults", "18_Romandie", "RomandieStage2.xlsx"))
+RomandieStage2$raceName <- "RomandieStage2"
+raceResults <- select(RomandieStage2, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+RomandieStage3 <- read_excel(here("Project", "rawData", "AllRaceResults", "18_Romandie", "RomandieStage3.xlsx"))
+RomandieStage3$raceName <- "RomandieStage3"
+raceResults <- select(RomandieStage3, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+RomandieStage4 <- read_excel(here("Project", "rawData", "AllRaceResults", "18_Romandie", "RomandieStage4.xlsx"))
+RomandieStage4$raceName <- "RomandieStage4"
+raceResults <- select(RomandieStage4, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+RomandieStage5 <- read_excel(here("Project", "rawData", "AllRaceResults", "18_Romandie", "RomandieStage5.xlsx"))
+RomandieStage5$raceName <- "RomandieStage5"
+raceResults <- select(RomandieStage5, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+GiroStage1 <- read_excel(here("Project", "rawData", "AllRaceResults", "20_Giro", "GiroStage1.xlsx"))
+GiroStage1$raceName <- "GiroStage1"
+raceResults <- select(GiroStage1, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+GiroStage2 <- read_excel(here("Project", "rawData", "AllRaceResults", "20_Giro", "GiroStage2.xlsx"))
+GiroStage2$raceName <- "GiroStage2"
+raceResults <- select(GiroStage2, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+GiroStage3 <- read_excel(here("Project", "rawData", "AllRaceResults", "20_Giro", "GiroStage3.xlsx"))
+GiroStage3$raceName <- "GiroStage3"
+raceResults <- select(GiroStage3, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+GiroStage4 <- read_excel(here("Project", "rawData", "AllRaceResults", "20_Giro", "GiroStage4.xlsx"))
+GiroStage4$raceName <- "GiroStage4"
+raceResults <- select(GiroStage4, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+GiroStage5 <- read_excel(here("Project", "rawData", "AllRaceResults", "20_Giro", "GiroStage5.xlsx"))
+GiroStage5$raceName <- "GiroStage5"
+raceResults <- select(GiroStage5, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+GiroStage6 <- read_excel(here("Project", "rawData", "AllRaceResults", "20_Giro", "GiroStage6.xlsx"))
+GiroStage6$raceName <- "GiroStage6"
+raceResults <- select(GiroStage6, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+GiroStage7 <- read_excel(here("Project", "rawData", "AllRaceResults", "20_Giro", "GiroStage7.xlsx"))
+GiroStage7$raceName <- "GiroStage7"
+raceResults <- select(GiroStage7, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+GiroStage8 <- read_excel(here("Project", "rawData", "AllRaceResults", "20_Giro", "GiroStage8.xlsx"))
+GiroStage8$raceName <- "GiroStage8"
+raceResults <- select(GiroStage8, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+GiroStage9 <- read_excel(here("Project", "rawData", "AllRaceResults", "20_Giro", "GiroStage9.xlsx"))
+GiroStage9$raceName <- "GiroStage9"
+raceResults <- select(GiroStage9, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+GiroStage10 <- read_excel(here("Project", "rawData", "AllRaceResults", "20_Giro", "GiroStage10.xlsx"))
+GiroStage10$raceName <- "GiroStage10"
+raceResults <- select(GiroStage10, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+GiroStage11 <- read_excel(here("Project", "rawData", "AllRaceResults", "20_Giro", "GiroStage11.xlsx"))
+GiroStage11$raceName <- "GiroStage11"
+raceResults <- select(GiroStage11, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+GiroStage12 <- read_excel(here("Project", "rawData", "AllRaceResults", "20_Giro", "GiroStage12.xlsx"))
+GiroStage12$raceName <- "GiroStage12"
+raceResults <- select(GiroStage12, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+GiroStage13 <- read_excel(here("Project", "rawData", "AllRaceResults", "20_Giro", "GiroStage13.xlsx"))
+GiroStage13$raceName <- "GiroStage13"
+raceResults <- select(GiroStage13, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+GiroStage14 <- read_excel(here("Project", "rawData", "AllRaceResults", "20_Giro", "GiroStage14.xlsx"))
+GiroStage14$raceName <- "GiroStage14"
+raceResults <- select(GiroStage14, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+GiroStage15 <- read_excel(here("Project", "rawData", "AllRaceResults", "20_Giro", "GiroStage15.xlsx"))
+GiroStage15$raceName <- "GiroStage15"
+raceResults <- select(GiroStage15, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+GiroStage16 <- read_excel(here("Project", "rawData", "AllRaceResults", "20_Giro", "GiroStage16.xlsx"))
+GiroStage16$raceName <- "GiroStage16"
+raceResults <- select(GiroStage16, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+GiroStage17 <- read_excel(here("Project", "rawData", "AllRaceResults", "20_Giro", "GiroStage17.xlsx"))
+GiroStage17$raceName <- "GiroStage17"
+raceResults <- select(GiroStage17, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+GiroStage18 <- read_excel(here("Project", "rawData", "AllRaceResults", "20_Giro", "GiroStage18.xlsx"))
+GiroStage18$raceName <- "GiroStage18"
+raceResults <- select(GiroStage18, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+GiroStage19 <- read_excel(here("Project", "rawData", "AllRaceResults", "20_Giro", "GiroStage19.xlsx"))
+GiroStage19$raceName <- "GiroStage19"
+raceResults <- select(GiroStage19, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+GiroStage20 <- read_excel(here("Project", "rawData", "AllRaceResults", "20_Giro", "GiroStage20.xlsx"))
+GiroStage20$raceName <- "GiroStage20"
+raceResults <- select(GiroStage20, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+GiroStage21 <- read_excel(here("Project", "rawData", "AllRaceResults", "20_Giro", "GiroStage21.xlsx"))
+GiroStage21$raceName <- "GiroStage21"
+raceResults <- select(GiroStage21, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+DauphineStage1 <- read_excel(here("Project", "rawData", "AllRaceResults", "21_Dauphine", "DauphineStage1.xlsx"))
+DauphineStage1$raceName <- "DauphineStage1"
+raceResults <- select(DauphineStage1, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+DauphineStage2 <- read_excel(here("Project", "rawData", "AllRaceResults", "21_Dauphine", "DauphineStage2.xlsx"))
+DauphineStage2$raceName <- "DauphineStage2"
+raceResults <- select(DauphineStage2, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+DauphineStage3 <- read_excel(here("Project", "rawData", "AllRaceResults", "21_Dauphine", "DauphineStage3.xlsx"))
+DauphineStage3$raceName <- "DauphineStage3"
+raceResults <- select(DauphineStage3, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+DauphineStage4 <- read_excel(here("Project", "rawData", "AllRaceResults", "21_Dauphine", "DauphineStage4.xlsx"))
+DauphineStage4$raceName <- "DauphineStage4"
+raceResults <- select(DauphineStage4, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+DauphineStage5 <- read_excel(here("Project", "rawData", "AllRaceResults", "21_Dauphine", "DauphineStage5.xlsx"))
+DauphineStage5$raceName <- "DauphineStage5"
+raceResults <- select(DauphineStage5, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+DauphineStage6 <- read_excel(here("Project", "rawData", "AllRaceResults", "21_Dauphine", "DauphineStage6.xlsx"))
+DauphineStage6$raceName <- "DauphineStage6"
+raceResults <- select(DauphineStage6, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+DauphineStage7 <- read_excel(here("Project", "rawData", "AllRaceResults", "21_Dauphine", "DauphineStage7.xlsx"))
+DauphineStage7$raceName <- "DauphineStage7"
+raceResults <- select(DauphineStage7, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+DauphineStage8 <- read_excel(here("Project", "rawData", "AllRaceResults", "21_Dauphine", "DauphineStage8.xlsx"))
+DauphineStage8$raceName <- "DauphineStage8"
+raceResults <- select(DauphineStage8, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+SuisseStage1 <- read_excel(here("Project", "rawData", "AllRaceResults", "22_Suisse", "SuisseStage1.xlsx"))
+SuisseStage1$raceName <- "SuisseStage1"
+raceResults <- select(SuisseStage1, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+SuisseStage2 <- read_excel(here("Project", "rawData", "AllRaceResults", "22_Suisse", "SuisseStage2.xlsx"))
+SuisseStage2$raceName <- "SuisseStage2"
+raceResults <- select(SuisseStage2, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+SuisseStage3 <- read_excel(here("Project", "rawData", "AllRaceResults", "22_Suisse", "SuisseStage3.xlsx"))
+SuisseStage3$raceName <- "SuisseStage3"
+raceResults <- select(SuisseStage3, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+SuisseStage4 <- read_excel(here("Project", "rawData", "AllRaceResults", "22_Suisse", "SuisseStage4.xlsx"))
+SuisseStage4$raceName <- "SuisseStage4"
+raceResults <- select(SuisseStage4, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+SuisseStage5 <- read_excel(here("Project", "rawData", "AllRaceResults", "22_Suisse", "SuisseStage5.xlsx"))
+SuisseStage5$raceName <- "SuisseStage5"
+raceResults <- select(SuisseStage5, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+SuisseStage6 <- read_excel(here("Project", "rawData", "AllRaceResults", "22_Suisse", "SuisseStage6.xlsx"))
+SuisseStage6$raceName <- "SuisseStage6"
+raceResults <- select(SuisseStage6, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+SuisseStage7 <- read_excel(here("Project", "rawData", "AllRaceResults", "22_Suisse", "SuisseStage7.xlsx"))
+SuisseStage7$raceName <- "SuisseStage7"
+raceResults <- select(SuisseStage7, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+SuisseStage8 <- read_excel(here("Project", "rawData", "AllRaceResults", "22_Suisse", "SuisseStage8.xlsx"))
+SuisseStage8$raceName <- "SuisseStage8"
+raceResults <- select(SuisseStage8, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+TDFStage1 <- read_excel(here("Project", "rawData", "AllRaceResults", "23_TDF", "TDFStage1.xlsx"))
+TDFStage1$raceName <- "TDFStage1"
+raceResults <- select(TDFStage1, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+TDFStage2 <- read_excel(here("Project", "rawData", "AllRaceResults", "23_TDF", "TDFStage2.xlsx"))
+TDFStage2$raceName <- "TDFStage2"
+raceResults <- select(TDFStage2, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+TDFStage3 <- read_excel(here("Project", "rawData", "AllRaceResults", "23_TDF", "TDFStage3.xlsx"))
+TDFStage3$raceName <- "TDFStage3"
+raceResults <- select(TDFStage3, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+TDFStage4 <- read_excel(here("Project", "rawData", "AllRaceResults", "23_TDF", "TDFStage4.xlsx"))
+TDFStage4$raceName <- "TDFStage4"
+raceResults <- select(TDFStage4, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+TDFStage5 <- read_excel(here("Project", "rawData", "AllRaceResults", "23_TDF", "TDFStage5.xlsx"))
+TDFStage5$raceName <- "TDFStage5"
+raceResults <- select(TDFStage5, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+TDFStage6 <- read_excel(here("Project", "rawData", "AllRaceResults", "23_TDF", "TDFStage6.xlsx"))
+TDFStage6$raceName <- "TDFStage6"
+raceResults <- select(TDFStage6, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+TDFStage7 <- read_excel(here("Project", "rawData", "AllRaceResults", "23_TDF", "TDFStage7.xlsx"))
+TDFStage7$raceName <- "TDFStage7"
+raceResults <- select(TDFStage7, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+TDFStage8 <- read_excel(here("Project", "rawData", "AllRaceResults", "23_TDF", "TDFStage8.xlsx"))
+TDFStage8$raceName <- "TDFStage8"
+raceResults <- select(TDFStage8, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+TDFStage9 <- read_excel(here("Project", "rawData", "AllRaceResults", "23_TDF", "TDFStage9.xlsx"))
+TDFStage9$raceName <- "TDFStage9"
+raceResults <- select(TDFStage9, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+TDFStage10 <- read_excel(here("Project", "rawData", "AllRaceResults", "23_TDF", "TDFStage10.xlsx"))
+TDFStage10$raceName <- "TDFStage10"
+raceResults <- select(TDFStage10, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+TDFStage11 <- read_excel(here("Project", "rawData", "AllRaceResults", "23_TDF", "TDFStage11.xlsx"))
+TDFStage11$raceName <- "TDFStage11"
+raceResults <- select(TDFStage11, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+TDFStage12 <- read_excel(here("Project", "rawData", "AllRaceResults", "23_TDF", "TDFStage12.xlsx"))
+TDFStage12$raceName <- "TDFStage12"
+raceResults <- select(TDFStage12, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+TDFStage13 <- read_excel(here("Project", "rawData", "AllRaceResults", "23_TDF", "TDFStage13.xlsx"))
+TDFStage13$raceName <- "TDFStage13"
+raceResults <- select(TDFStage13, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+TDFStage14 <- read_excel(here("Project", "rawData", "AllRaceResults", "23_TDF", "TDFStage14.xlsx"))
+TDFStage14$raceName <- "TDFStage14"
+raceResults <- select(TDFStage14, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+TDFStage15 <- read_excel(here("Project", "rawData", "AllRaceResults", "23_TDF", "TDFStage15.xlsx"))
+TDFStage15$raceName <- "TDFStage15"
+raceResults <- select(TDFStage15, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+TDFStage16 <- read_excel(here("Project", "rawData", "AllRaceResults", "23_TDF", "TDFStage16.xlsx"))
+TDFStage16$raceName <- "TDFStage16"
+raceResults <- select(TDFStage16, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+TDFStage17 <- read_excel(here("Project", "rawData", "AllRaceResults", "23_TDF", "TDFStage17.xlsx"))
+TDFStage17$raceName <- "TDFStage17"
+raceResults <- select(TDFStage17, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+TDFStage18 <- read_excel(here("Project", "rawData", "AllRaceResults", "23_TDF", "TDFStage18.xlsx"))
+TDFStage18$raceName <- "TDFStage18"
+raceResults <- select(TDFStage18, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+TDFStage19 <- read_excel(here("Project", "rawData", "AllRaceResults", "23_TDF", "TDFStage19.xlsx"))
+TDFStage19$raceName <- "TDFStage19"
+raceResults <- select(TDFStage19, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+TDFStage20 <- read_excel(here("Project", "rawData", "AllRaceResults", "23_TDF", "TDFStage20.xlsx"))
+TDFStage20$raceName <- "TDFStage20"
+raceResults <- select(TDFStage20, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+TDFStage21 <- read_excel(here("Project", "rawData", "AllRaceResults", "23_TDF", "TDFStage21.xlsx"))
+TDFStage21$raceName <- "TDFStage21"
+raceResults <- select(TDFStage21, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+PolandStage1 <- read_excel(here("Project", "rawData", "AllRaceResults", "25_Poland", "PolandStage1.xlsx"))
+PolandStage1$raceName <- "PolandStage1"
+raceResults <- select(PolandStage1, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+PolandStage2 <- read_excel(here("Project", "rawData", "AllRaceResults", "25_Poland", "PolandStage2.xlsx"))
+PolandStage2$raceName <- "PolandStage2"
+raceResults <- select(PolandStage2, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+PolandStage3 <- read_excel(here("Project", "rawData", "AllRaceResults", "25_Poland", "PolandStage3.xlsx"))
+PolandStage3$raceName <- "PolandStage3"
+raceResults <- select(PolandStage3, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+PolandStage4 <- read_excel(here("Project", "rawData", "AllRaceResults", "25_Poland", "PolandStage4.xlsx"))
+PolandStage4$raceName <- "PolandStage4"
+raceResults <- select(PolandStage4, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+PolandStage5 <- read_excel(here("Project", "rawData", "AllRaceResults", "25_Poland", "PolandStage5.xlsx"))
+PolandStage5$raceName <- "PolandStage5"
+raceResults <- select(PolandStage5, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+PolandStage6 <- read_excel(here("Project", "rawData", "AllRaceResults", "25_Poland", "PolandStage6.xlsx"))
+PolandStage6$raceName <- "PolandStage6"
+raceResults <- select(PolandStage6, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+PolandStage7 <- read_excel(here("Project", "rawData", "AllRaceResults", "25_Poland", "PolandStage7.xlsx"))
+PolandStage7$raceName <- "PolandStage7"
+raceResults <- select(PolandStage7, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+VueltaStage2 <- read_excel(here("Project", "rawData", "AllRaceResults", "26_Vuelta", "VueltaStage2.xlsx"))
+VueltaStage2$raceName <- "VueltaStage2"
+raceResults <- select(VueltaStage2, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+VueltaStage3 <- read_excel(here("Project", "rawData", "AllRaceResults", "26_Vuelta", "VueltaStage3.xlsx"))
+VueltaStage3$raceName <- "VueltaStage3"
+raceResults <- select(VueltaStage3, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+VueltaStage4 <- read_excel(here("Project", "rawData", "AllRaceResults", "26_Vuelta", "VueltaStage4.xlsx"))
+VueltaStage4$raceName <- "VueltaStage4"
+raceResults <- select(VueltaStage4, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+VueltaStage5 <- read_excel(here("Project", "rawData", "AllRaceResults", "26_Vuelta", "VueltaStage5.xlsx"))
+VueltaStage5$raceName <- "VueltaStage5"
+raceResults <- select(VueltaStage5, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+VueltaStage6 <- read_excel(here("Project", "rawData", "AllRaceResults", "26_Vuelta", "VueltaStage6.xlsx"))
+VueltaStage6$raceName <- "VueltaStage6"
+raceResults <- select(VueltaStage6, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+VueltaStage7 <- read_excel(here("Project", "rawData", "AllRaceResults", "26_Vuelta", "VueltaStage7.xlsx"))
+VueltaStage7$raceName <- "VueltaStage7"
+raceResults <- select(VueltaStage7, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+VueltaStage8 <- read_excel(here("Project", "rawData", "AllRaceResults", "26_Vuelta", "VueltaStage8.xlsx"))
+VueltaStage8$raceName <- "VueltaStage8"
+raceResults <- select(VueltaStage8, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+VueltaStage9 <- read_excel(here("Project", "rawData", "AllRaceResults", "26_Vuelta", "VueltaStage9.xlsx"))
+VueltaStage9$raceName <- "VueltaStage9"
+raceResults <- select(VueltaStage9, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+VueltaStage10 <- read_excel(here("Project", "rawData", "AllRaceResults", "26_Vuelta", "VueltaStage10.xlsx"))
+VueltaStage10$raceName <- "VueltaStage10"
+raceResults <- select(VueltaStage10, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+VueltaStage11 <- read_excel(here("Project", "rawData", "AllRaceResults", "26_Vuelta", "VueltaStage11.xlsx"))
+VueltaStage11$raceName <- "VueltaStage11"
+raceResults <- select(VueltaStage11, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+VueltaStage12 <- read_excel(here("Project", "rawData", "AllRaceResults", "26_Vuelta", "VueltaStage12.xlsx"))
+VueltaStage12$raceName <- "VueltaStage12"
+raceResults <- select(VueltaStage12, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+VueltaStage13 <- read_excel(here("Project", "rawData", "AllRaceResults", "26_Vuelta", "VueltaStage13.xlsx"))
+VueltaStage13$raceName <- "VueltaStage13"
+raceResults <- select(VueltaStage13, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+VueltaStage14 <- read_excel(here("Project", "rawData", "AllRaceResults", "26_Vuelta", "VueltaStage14.xlsx"))
+VueltaStage14$raceName <- "VueltaStage14"
+raceResults <- select(VueltaStage14, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+VueltaStage15 <- read_excel(here("Project", "rawData", "AllRaceResults", "26_Vuelta", "VueltaStage15.xlsx"))
+VueltaStage15$raceName <- "VueltaStage15"
+raceResults <- select(VueltaStage15, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+VueltaStage16 <- read_excel(here("Project", "rawData", "AllRaceResults", "26_Vuelta", "VueltaStage16.xlsx"))
+VueltaStage16$raceName <- "VueltaStage16"
+raceResults <- select(VueltaStage16, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+VueltaStage17 <- read_excel(here("Project", "rawData", "AllRaceResults", "26_Vuelta", "VueltaStage17.xlsx"))
+VueltaStage17$raceName <- "VueltaStage17"
+raceResults <- select(VueltaStage17, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+VueltaStage18 <- read_excel(here("Project", "rawData", "AllRaceResults", "26_Vuelta", "VueltaStage18.xlsx"))
+VueltaStage18$raceName <- "VueltaStage18"
+raceResults <- select(VueltaStage18, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+VueltaStage19 <- read_excel(here("Project", "rawData", "AllRaceResults", "26_Vuelta", "VueltaStage19.xlsx"))
+VueltaStage19$raceName <- "VueltaStage19"
+raceResults <- select(VueltaStage19, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+VueltaStage20 <- read_excel(here("Project", "rawData", "AllRaceResults", "26_Vuelta", "VueltaStage20.xlsx"))
+VueltaStage20$raceName <- "VueltaStage20"
+raceResults <- select(VueltaStage20, Rnk, Rider, raceName) %>% rbind(raceResults)
+
+VueltaStage21 <- read_excel(here("Project", "rawData", "AllRaceResults", "26_Vuelta", "VueltaStage21.xlsx"))
+VueltaStage21$raceName <- "VueltaStage21"
+raceResults <- select(VueltaStage21, Rnk, Rider, raceName) %>% rbind(raceResults)
+```
+
+Next, we read in the race profiles and rider profiles. We then merge all of three of these dataframes together to make our final dataframe.
+```{r}
+#read in the rider profile excel sheet
+riderProfile <- read_excel(here("Project", "rawData", "RiderProfile.xlsx"))
+
+#merge the rider profile df and the race results df
+riderPlusRaceResults <- merge(riderProfile, raceResults, by.x="RiderName", by.y="Rider", all=TRUE)
+
+#read in the race profile excel sheet
+raceProfile <- read_excel(here("Project", "rawData", "raceProfile.xlsx"))
+
+#merge the previously merged df and the raceProfile df
+bikingDF <- merge(riderPlusRaceResults, raceProfile, by.x="raceName", by.y="RaceName")
+```
+
+### Dealing with NAs
+Now, we need to figure out how to deal with our NAs. Let's visualize the missing data first.
+```{r}
+#visualize missing data
+vis_miss(bikingDF)
+```
+
+Overall, I have a very small amount of missing data. The most significant categories that were missing data was weight and height but even for these the percentage missing is at 2% and 1% respectively. I know from data collection that riders who were missing weight and height values generally did not play huge factors in races in general. There are lots of racers who fall into the category of not being a factor in races so losing these riders from my dataset will not be a big deal. The same goes with missing values in team, PCSRanking, and PCSTeamRanking. Thus, I will now remove all missing value observations.
+I am also going to remove all DNF, DNS, or OTL observations. The reasons behind receiving a "did not finish", "did not start", or "outside of time limit" are beyond the scope of this investigation. This also means that the Rnk column can be numeric.
+
+```{r}
+#convert Rnk column from character entries to numeric entries
+bikingDF$Rnk <- as.numeric(bikingDF$Rnk)
+#all DNF, DNS, OTL are converted to NAs which are then removed by the na.omit function
+
+#remove rows with NAs
+bikingDF <- na.omit(bikingDF)
+```
+
+### Exporting our data frames
+Now, I will export the bikingDF so they can be used in other files.
+
+```{r}
+#save bikingDF
+write_xlsx(bikingDF, here("Project", "rawData", "bikingDF.xlsx"))
 ```
 
