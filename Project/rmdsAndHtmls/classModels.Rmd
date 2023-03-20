@@ -1,8 +1,12 @@
 ---
-title: "classificationModels"
+title: "Classification Models"
 author: "Noah Moyer"
 date: "2023-03-07"
-output: html_document
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: show
 ---
 
 ```{r setup, include=FALSE}

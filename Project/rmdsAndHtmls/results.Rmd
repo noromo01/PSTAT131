@@ -1,8 +1,12 @@
 ---
-title: "results"
+title: "Results"
 author: "Noah Moyer"
 date: "2023-03-18"
-output: html_document
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: show
 ---
 
 ```{r setup, include=FALSE}
@@ -135,10 +139,10 @@ best_class_mod_class <- select_best(class_boosted_for, metric='roc_auc')
 
 #fit to training set
 final_boosted_class <- finalize_workflow(boosted_for_wkflw_class, best_class_mod_class) %>% 
-  fit(bikeTrain)
+  fit(bikeTrainClass)
 
 #evaluate on the testing set
-best_class_testing <- augment(final_boosted_class, bikeTest) %>% 
+best_class_testing <- augment(final_boosted_class, bikeTestClass) %>% 
   select(Rnk, starts_with(".pred"))
 
 #evaluate the model
@@ -153,6 +157,7 @@ final_boosted_class %>%
   extract_fit_parsnip() %>% 
   vip(num_features=26)
 ```
+
 This variable importance plot is super interesting. It makes sense that PCSRanking would be head and shoulders the best predictor of race results. This is the overall ranking of how good a rider is so obviously this would be a good predictor of rider performance. It makes sense that some of the next best predictors are the various components that say how good a rider is. It is interesting to see and makes me feel good about my model set up that the important variables are a mix from the rider profile dataset and the race profile dataset. It shows that the race set up and the individual rider play a major roll in how the race is won (or how riders get in the top 10). I am also happy to see that while there are definitely certain variables that are more important to others, all variables had some role to play
 Let's look at the ROC curve.
 ```{r}
@@ -161,6 +166,7 @@ roc_curve(best_class_testing, truth=Rnk, .pred_notTop10) %>%
   autoplot()
 
 ```
+
 The ROC curve looks about as we would expect. It is by no means perfect but it does a lot better than just random guessing.
 Let's create a confusion matrix next.
 ```{r}
@@ -185,6 +191,7 @@ autoplot(reg_rand_for)
 autoplot(reg_boosted_for)
 
 ```
+
 My initial reaction is that throughout we have a low r-squared value. It appears that none of our models did a very good job at predicting race outcome.
 For k-nearest neighbors the models follow the same trend that the KNN model did for the classification models, the more neighbors the better the model performed.
 For our regularized linear regression, we see another similar trend. Zero regularization, a complete ridge regression, seems to perform best across penalties. As regularization increases, the best models are those with a low penalty.
@@ -227,6 +234,7 @@ final_boosted_reg %>%
   extract_fit_parsnip() %>% 
   vip(num_features=26)
 ```
+
 I am interested to see that the variable importance plot looks somewhat different than the variable importance plot from the classification data. We have the same top performers but in addition to the drop from PCSRanking to ClimberScore there is another drop from GCScore to NumFinished. This means that the model was using GCScore and ClimberScore more than just PCSRanking. In fact, PCSRanking dropped from having an importance of around 0.27 to having an importance of 0.17. 
 
 Let's create a predicted vs actual value plot
@@ -238,6 +246,7 @@ best_reg_testing %>%
   labs(title="Predicted and Actual Values of Rank", x="Prediction", y="Actual Value")
 
 ```
+
 Overall, it looks like the model performed fairly well. It is definitely worth noting that the algorithm does not seem to understand the concept of ranges. For example, it is impossible for you to finish in a place that is negative, which the model did predict a handful of times. All in all, the model did a pretty good job of getting a general range of where people would finish. I think it is worth noting that it appears as if there are more values below the line at low values and more values above the line at high values. I think this is because the model was not great at predicting riders who surprised and did well. The model also was not good at predicting when a rider disappoints by doing worse than they should have. This is because the model has no way of knowing why they disappointed. For example, it could have been because the favorite crashed which the model would have no way of knowing.
 
 ### Predicting MSR

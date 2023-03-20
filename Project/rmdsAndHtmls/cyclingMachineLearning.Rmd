@@ -21,6 +21,17 @@ library(readxl)
 library(writexl)
 library(dplyr) #for pipe function
 library(visdat) #for visualizing missing data
+library(ggplot2)
+library(corrr)
+library(corrplot)
+library(tidymodels)
+library(ISLR)
+library(ISLR2)
+library(tidyverse)
+library(glmnet)
+library(themis) #for step_upsample
+library(vip)
+tidymodels_prefer()
 ```
 
 ## Introduction
@@ -664,3 +675,762 @@ Now, I will export the bikingDF so they can be used in other files.
 write_xlsx(bikingDF, here("Project", "rawData", "bikingDF.xlsx"))
 ```
 
+## Exploratory Data Analysis
+### Packages and reading in data
+Now I will read in the overall data but also the raceProfile and riderProfile data. I am reading in both raceProfile and riderProfile because these will be easier to conduct exploratory data analysis on.
+```{r}
+#read in bikingDF
+biking <- read_excel(here("Project", "rawData", "bikingDF.xlsx"))
+
+#read in raceProfile
+raceProfile <- read_excel(here("Project", "rawData", "raceProfile.xlsx"))
+
+#read in riderProfile
+riderProfile <- read_excel(here("Project", "rawData", "RiderProfile.xlsx"))
+```
+
+### Exploring the biking dataframe
+First I am going to explore the main biking dataframe.
+```{r}
+#general exploration
+str(biking)
+
+#barplot
+ggplot(data=biking, aes(x=Rnk)) +
+  geom_histogram(binwidth=1) +
+  labs(title="Histogram of Finishing Position From Races", x="Finishing Position", y="Count")
+
+#Finishing place versus PCS ranking
+ggplot(biking, aes(x=PCSRanking, y=Rnk)) +
+  geom_point(size=1) +
+  geom_smooth(se=FALSE) +
+  labs(title="Scatter Plot of PCS Ranking versus Finishing Place in Races", x="PCS Ranking", y="Finishing Place")
+```
+  
+There is something curious to note about the finishing position. I would expect the bar chart to have a smooth trend to it (ie the number of finishers in position n never exceeds the number of finishers in position n-1) but this does not appear to be the case. This may have occurred due to removing NAs or may be a data entry error. I will continue to keep an eye out for this in my coming analysis.
+I also produced a scatter plot of PCS ranking versus finishing place. This graph shows what we would expect. As a rider has a lower PCS Ranking, lower finishing places are achieved. It is definitely worth noting, however, that the slope of the spline varies throughout the graph. It is very steep from a PCS ranking of one through about 150. Thus, the high ranked riders win a lot more than even riders ranked slightly lower. After that, the spline smooths out, showing that PCS ranking matters less here.
+
+Now, I want to produce some graph about riders who finished in the top 10
+```{r}
+#first, I am going to create a subset of data where we only include riders who finished in the top 10 of a race
+bikingTop10 <- biking %>% 
+  filter(Rnk<=10)
+
+#now lets make a histogram of these rider's ages
+ggplot(bikingTop10, aes(x=AgeYear)) +
+  geom_histogram(binwidth=1) +
+  labs(title="Histogram of the Ages of Riders who Finished in the Top 10", x="Age", y="Count")
+
+#a histogram of teams of these riders
+ggplot(bikingTop10, aes(x=factor(PCSTeamRanking))) +
+  geom_bar(stat="count") +
+  labs(title="Bar Plot of Team Ranking that Riders are on who Finished in the Top 10", x="Team Ranking (according to PCS)", y="Count")
+```
+
+The first graph, we can tell that age is approximately normally distributed around 28. It is interesting to note that there are not a lot of results at age 34. This is probably due to the fact that there are coincidentally few riders who are performing well at this age.
+The team ranking graph shows us what we would expect. Better ranked teams have more riders in the top 10 of races. It is interesting to note that this graph is not strictly decreasing. For example, the second ranked team has more finishes in the top 10 than the first ranked team. This shows that races aren't all determined by who finished in the top 10, it is important who won the race as well.
+
+Plots of race profile
+```{r}
+#Race speed versus Startlist quality
+ggplot(raceProfile, aes(x=StartlistQualScore, y=AvgSpeedWinner)) +
+  geom_point() +
+  geom_smooth(method=lm, se=FALSE) +
+  labs(title="Predicting Race Speed based on Startlist Quality", x="Startlist Quality", y="Speed of Race (km/hr)")
+
+ggplot(raceProfile, aes(x=factor(ParcourTypeCategorical), y=AvgSpeedWinner)) +
+  geom_boxplot(outlier.shape=NA) +
+  geom_jitter(alpha=0.1) +
+  labs(title="Race Speed Across Different Types of Race", x="Type of Race", y="Race Speed (km/hr)")
+```
+
+For the scatterplot, there is a weak positive association. I would hesitate to conclude that startlist quality increases the speed of races. There may be some association with speed and startlist quality but it is a weak association.
+
+For the boxplot, race speed varies a lot by the type of race. Note that for most race names, the first word indicates the general profile of the race while the second word indicates how the race finished (ie HillFlat would be a hilly race that ended flat while FlatHill would be a flat race that ended with a hill).
+
+### Correlation
+Let's test out correlation in our dataset.
+```{r}
+#test correlation
+cor_results <- biking %>% 
+  select(-Rnk) %>% 
+  correlate()
+
+cor_results %>% 
+  stretch() %>% 
+  ggplot(aes(x,y,fill=r)) +
+  geom_tile() +
+  geom_text(aes(label=as.character(fashion(r)))) +
+  theme(axis.text.x=element_text(angle=-90))
+```
+
+Overall, there are very few variables with super high correlation. A few variables have high correlation as expected. For example, winningTimeHours and winningTimeMin are highly correlated because winningTimeHours was used to calculate winningTimeMin. Also, on PCS race ranking is a function of startlist quality score so it makes sense that RaceRanking and StartlistQualScore have very high correlation. The same is true for VertMeters and ProfileScore. Some other interesting high correlations exist such as between the number of grand tours raced and the age of the rider. It makes sense for there to be a high positive correlation here but for the value to be so high is surprising. Also, winningTimeMin and distance having a correlation of 0.97 is notable. It makes sense that these two are highly correlated but to have a correlation of almost one is notable. It seems like other factors such as vertical meters or even how the riders raced the race would lower the correlation slightly. I am very happy, however, that I have so many variables that have relatively low correlation that I get to play with in my analysis.
+
+### Split data into regression dataset and classification dataset
+I am unsure if my data will work better as a regression dataset or as a classification dataset. Thus, I have decided that I am going to try both. In bike races, riders compete heavily for the top 10 but after that riders are not overly worried about whether they finish in 42nd or in 72nd. Thus, for my classification dataset I am going to split the results into a top10 classification and then a notTop10 classification. I will then run models on this classification dataset. The code below is how I created the new classification dataset.
+```{r}
+#copy the dataframe
+bikingClass <- biking
+
+#assign categories
+bikingClass$Rnk <- ifelse(bikingClass$Rnk %in% c(1:10), "top10", "notTop10")
+
+#plot of finishes in top 10 versus not in the top 10
+ggplot(bikingClass, aes(x=factor(Rnk))) +
+  geom_bar(stat="count") +
+  labs(title="Count of Finishes in the Top 10 Versus not in the Top 10", x=NULL, y="Count")
+
+#export classification
+write_xlsx(bikingClass, here("Project", "rawData", "bikingClass.xlsx"))
+```
+
+I will need to conduct some upsampling so that my class sizes are closer to equal. I will upsample to an over_ratio of 0.5
+
+## Run the Classification Models
+Now we will run the classification models.
+### Read in dataset
+```{r}
+bikeClass <- read_excel(here("Project", "rawData", "bikingClass.xlsx"))
+bikingOG <- bikeClass #for the corr plot
+```
+
+### Split data
+
+First, we need to split the data into our training and testing set
+```{r}
+#make the regressor variable (whether or not we are in the top 10) a factor
+bikeClass$Rnk <- factor(bikeClass$Rnk)
+
+#make the classification variables into factors
+bikeClass$ParcourTypeCategorical <- factor(bikeClass$ParcourTypeCategorical)
+bikeClass$WonByCategorical <- factor(bikeClass$WonByCategorical)
+
+#remove unneccesary variable
+bikeClass <- bikeClass %>% 
+  select(-c(raceName, RiderName, RiderLastName, Team, WinningTimeHours, WinningTimeMinutes, Months, Days, VertMeters, StartlistQualScore))
+```
+I removed raceName,  RiderName, RiderLastName, and Team because all of these variables are identification variables and will not be useful in our analysis. I removed WinningTimeHours and WinningTimeMinutes because these are both variables that were used to determine WinningTimeMin: ($Hours+Minutes*60$). I removed Months and Days because they were used to determine DaysIntoYear: ($30.4*Months+Days$). I removed VertMeters because of the high correlation with ProfileScore. I know that ProfileScore was calculated using VertMeters. I removed StartlistQualScore because of the high correlation with RaceRanking. I know that StartlistQualScore was calculated using RaceRanking. I believe that other variables with high correlation, such as GCScore and Climber score as well as WinningTimeMin and Distance are still useful for our analysis. For example, in the rare case that a rider has a low GCScore but a high Climber score that tells us that the rider is very good at climbing but bad at other characteristics of a GC rider such as time trialing. Also, in the case that WinningTimeMin and Distance do not correlate as predicted this tells us that something must have happened in the race that caused it to be a lot slower. This could provide some interesting insights.
+
+Below is the correlation plot before variables were removed for reference.
+```{r}
+#from EDA.rmd
+cor_results <- bikingOG %>% 
+  select(-Rnk) %>% 
+  correlate()
+
+cor_results %>% 
+  stretch() %>% 
+  ggplot(aes(x,y,fill=r)) +
+  geom_tile() +
+  geom_text(aes(label=as.character(fashion(r)))) +
+  theme(axis.text.x=element_text(angle=-90))
+
+```
+
+We will proceed forward with splitting the data.
+
+```{r}
+set.seed(110)
+
+#split the dataset by 0.75
+bikeSplit <- initial_split(bikeClass, prop=0.75, strata="Rnk")
+
+#set into training and test
+bikeTrain <- training(bikeSplit)
+bikeTest <- testing(bikeSplit)
+
+#create a ten fold cross validation
+bikeFold <- vfold_cv(bikeTrain, v=10, strata="Rnk")
+```
+
+### Building the recipe
+Building the recipe for the bikeClass
+
+```{r}
+#build the recipe
+bikeRecipe <- recipe(Rnk~., data=bikeTrain) %>% 
+  step_dummy(all_nominal_predictors()) %>% #dummy code all the categorical variables
+  step_normalize(all_predictors()) %>% #set all numeric variables such that they have a mean of 0 and variance of 1
+  step_upsample(Rnk, over_ratio=0.5) #upsample Rnk (our response variable) such that top 10 is equal to a quarter of notTopTen
+```
+
+I am well aware that my response variable is very unbalanced. Thus, to make up for this I am upsampling. However, I don't want to overdo how much some variables may be copied so I only set the over_ratio to 0.5.
+
+### Model choice and fitting
+I shall fit 5 models to my classification dataset. I first decided to do a logistic regression as a good base model. The next model I decided to used was a regularized regression logistic model in order to return the best possible logistic regression using a combination of Lasso and Ridge regularization as well as tuning the penalty hyperparameter. I also decided to use a K-nearest neighbors (KNN) model as this model is distinctly different than the other models. I finally decided to use a random forest and a boosted tree model as these models are the most advanced and I expect them to return the best results.
+```{r}
+#Logistic regression
+log_reg <- logistic_reg() %>% 
+  set_mode("classification") %>% 
+  set_engine("glm")
+
+#Regularized regression
+log_reg_reg <- logistic_reg(mixture=tune(),
+                            penalty=tune()) %>% 
+  set_mode("classification") %>% 
+  set_engine("glmnet")
+
+#K-nearest neighbors
+KNN <- nearest_neighbor(neighbors=tune()) %>% 
+  set_mode("classification") %>% 
+  set_engine("kknn")
+
+#random forest
+rand_for <- rand_forest(mtry=tune(),
+                        trees=tune(),
+                        min_n=tune()) %>% 
+  set_engine("ranger") %>% 
+  set_mode("classification")
+
+#boosted trees
+boosted_for <- boost_tree(mtry=tune(),
+                          trees=tune(),
+                          learn_rate=tune()) %>% 
+  set_engine("xgboost") %>% 
+  set_mode("classification")
+```
+
+I am going to do some tuning in order to optimize by hyperparameters. For logistic regularized regression I chose 0 through 1 for penalty and mixture in order to get a wide range of penalties for the regularization and a wide range of mixtures between Lasso and Ridge. For KNN I chose one step increments between 2 and 12. I figure 1 is probably too specific but 2 through 12 seems to give a good range that will provide some useful insights. For my random forest, I chose the number of predictors to be randomly selected between each split to be between 1 and 16 because I have 26 predictors and want to get a good range of different values for how many predictors I have. I chose trees to be between 100 and 800 because this gives us lots of varying levels of forest size. For the minimum number of nodes I chose between 10 and 18 because this is a decent amount of nodes at each terminal branch but it is not too many. For the boosted tree, I used the same logic for the number of predictors selected at each split and trees as I used for the random forest. For learn rate I chose between -10 and -1 because this correlates to $1*10^{-10}$ through $0.1$ which gives us a wide variety of learning rates. I decided to drop the number of levels from 8 to 5 in order to decrease run time for the random forest and boosted forest. With 8 levels and three hyperparameters that we are trying to tune, this means that we would have $8^{3}=512$ models to run on each fold. By dropping to 5 we only have $5^{3}=125$ models to run which is a much more doable number.
+```{r}
+#logistic regularized regression grid
+log_reg_reg_grid <- grid_regular(penalty(range=c(0,1),
+                                 trans=identity_trans()),
+                                 mixture(range=c(0,1)),
+                                 levels=5)
+#KNN grid
+KNN_grid <- grid_regular(neighbors(range=c(2,12)),
+                         levels=11)
+#random forest grid
+rand_for_grid <- grid_regular(mtry(range=c(8,20)),
+                              trees(range=c(100,800)),
+                              min_n(range=c(10,18)),
+                              levels=5)
+
+#boosted tree grid
+boosted_for_grid <- grid_regular(mtry(range=c(8,20)),
+                                 trees(range=c(100,800)),
+                                 learn_rate(range=c(-10,-1)),
+                                 levels=5)
+
+
+```
+
+Now we set up the workflows
+```{r}
+#workflow for the logistic regression model
+log_reg_wkflw <- workflow() %>% 
+  add_model(log_reg) %>% 
+  add_recipe(bikeRecipe)
+
+#workflow for the regularized regression
+log_reg_reg_wkflw <- workflow() %>% 
+  add_model(log_reg_reg) %>% 
+  add_recipe(bikeRecipe)
+
+#workflow for K-nearest neighbors
+KNN_wkflw <- workflow() %>% 
+  add_model(KNN) %>% 
+  add_recipe(bikeRecipe)
+
+#workflow for the random forest
+rand_for_wkflw <- workflow() %>% 
+  add_model(rand_for) %>% 
+  add_recipe(bikeRecipe)
+
+#workflow for the boosted tree
+boosted_for_wkflw <- workflow() %>% 
+  add_model(boosted_for) %>% 
+  add_recipe(bikeRecipe)
+```
+
+Next, we fit the models. Note that this is going to take a while to run. Thus, I set eval to false so that I would not have to run this every time. I then saved the models at the end of this code so they could be loaded in later and analyzed without having to run this code every single time.
+```{r, eval=FALSE}
+#model fit for the logistic regression model
+log_reg_fit <- fit_resamples(
+  object=log_reg_wkflw,
+  resamples=bikeFold
+)
+#save the model
+save(log_reg_fit, file=here("Project", "modelRuns", "class_log_reg_fit.rda"))
+
+#model fit for regularized regression
+log_reg_reg_fit <- tune_grid(
+  object=log_reg_reg_wkflw,
+  resamples=bikeFold,
+  grid=log_reg_reg_grid,
+  control=control_grid(verbose=TRUE)
+)
+save(log_reg_reg_fit, file=here("Project", "modelRuns", "class_log_reg_reg_fit.rda"))
+
+#model fit for k-nearest-neighbors
+KNN_fit <- tune_grid(
+  object=KNN_wkflw,
+  resamples=bikeFold,
+  grid=KNN_grid,
+  control=control_grid(verbose=TRUE)
+)
+save(KNN_fit, file=here("Project", "modelRuns", "class_KNN_fit.rda"))
+
+#model fit for the random forest
+rand_for_fit <- tune_grid(
+  object=rand_for_wkflw,
+  resamples=bikeFold,
+  grid=rand_for_grid,
+  control=control_grid(verbose=TRUE)
+)
+save(rand_for_fit, file=here("Project", "modelRuns", "class_rand_for_fit.rda"))
+
+#model fit for boosted tree
+boosted_for_fit <- tune_grid(
+  object=boosted_for_wkflw,
+  resamples=bikeFold,
+  grid=boosted_for_grid,
+  control=control_grid(verbose=TRUE)
+)
+save(boosted_for_fit, file=here("Project", "modelRuns", "class_boosted_for_fit.rda"))
+```
+
+## Regression Models
+
+Note: Much of the code is the same as the Classification Models from above. Commentary on the code has been removed where it would be redundant. The major difference in this code is that the response variable is no longer categorical, but is numeric. The response variable is simply the place the rider finished as a number. Commentary is still included when the code is novel.
+
+### Read in dataset
+```{r}
+bikeReg <- read_excel(here("Project", "rawData", "bikingDF.xlsx"))
+```
+
+### Split data
+
+```{r}
+#make the classification variables into factors
+bikeReg$ParcourTypeCategorical <- factor(bikeReg$ParcourTypeCategorical)
+bikeReg$WonByCategorical <- factor(bikeReg$WonByCategorical)
+
+#remove unneccesary variable
+bikeReg <- bikeReg %>% 
+  select(-c(raceName, RiderName, RiderLastName, Team, WinningTimeHours, WinningTimeMinutes, Months, Days, VertMeters, StartlistQualScore))
+
+set.seed(110)
+
+#split the dataset by 0.75
+bikeSplit <- initial_split(bikeReg, prop=0.75, strata="Rnk")
+
+#set into training and test
+bikeTrain <- training(bikeSplit)
+bikeTest <- testing(bikeSplit)
+
+#create a ten fold cross validation
+bikeFold <- vfold_cv(bikeTrain, v=10, strata="Rnk")
+```
+
+### Building the recipe
+```{r}
+#build the recipe
+bikeRecipe <- recipe(Rnk~., data=bikeTrain) %>% 
+  step_dummy(all_nominal_predictors()) %>% #dummy code all the categorical variables
+  step_normalize(all_predictors()) #set all numeric variables such that they have a mean of 0 and variance of 1
+```
+
+### Model choice and fitting
+All the models here are the same as the classification models except for a few differences. First off, instead of a logistic regression we use a linear regression for the first model. For the second model, we are creating a regularized regression based on a linear regression instead of a logistic regression. For all the models, the mode is regression instead of classification.
+```{r}
+#Linear regression
+lin_reg <- linear_reg() %>% 
+  set_mode("regression") %>% 
+  set_engine("glm")
+
+#Regularized regression
+lin_reg_reg <- linear_reg(mixture=tune(),
+                            penalty=tune()) %>% 
+  set_mode("regression") %>% 
+  set_engine("glmnet")
+
+#K-nearest neighbors
+KNN <- nearest_neighbor(neighbors=tune()) %>% 
+  set_mode("regression") %>% 
+  set_engine("kknn")
+
+#random forest
+rand_for <- rand_forest(mtry=tune(),
+                        trees=tune(),
+                        min_n=tune()) %>% 
+  set_engine("ranger") %>% 
+  set_mode("regression")
+
+#boosted trees
+boosted_for <- boost_tree(mtry=tune(),
+                          trees=tune(),
+                          learn_rate=tune()) %>% 
+  set_engine("xgboost") %>% 
+  set_mode("regression")
+```
+
+The same hyperparameters were used from the classification models based on the same logic.
+```{r}
+#logistic regularized regression grid
+lin_reg_reg_grid <- grid_regular(penalty(range=c(0,1),
+                                 trans=identity_trans()),
+                                 mixture(range=c(0,1)),
+                                 levels=5)
+#KNN grid
+KNN_grid <- grid_regular(neighbors(range=c(2,12)),
+                         levels=11)
+#random forest grid
+rand_for_grid <- grid_regular(mtry(range=c(1,16)),
+                              trees(range=c(100,800)),
+                              min_n(range=c(10,18)),
+                              levels=5)
+
+#boosted tree grid
+boosted_for_grid <- grid_regular(mtry(range=c(1,16)),
+                                 trees(range=c(100,800)),
+                                 learn_rate(range=c(-10,-1)),
+                                 levels=5)
+
+
+```
+
+Now we set up the workflows
+```{r}
+#workflow for the linear regression model
+lin_reg_wkflw <- workflow() %>% 
+  add_model(lin_reg) %>% 
+  add_recipe(bikeRecipe)
+
+#workflow for the regularized regression
+lin_reg_reg_wkflw <- workflow() %>% 
+  add_model(lin_reg_reg) %>% 
+  add_recipe(bikeRecipe)
+
+#workflow for K-nearest neighbors
+KNN_wkflw <- workflow() %>% 
+  add_model(KNN) %>% 
+  add_recipe(bikeRecipe)
+
+#workflow for the random forest
+rand_for_wkflw <- workflow() %>% 
+  add_model(rand_for) %>% 
+  add_recipe(bikeRecipe)
+
+#workflow for the boosted tree
+boosted_for_wkflw <- workflow() %>% 
+  add_model(boosted_for) %>% 
+  add_recipe(bikeRecipe)
+```
+
+Next, we fit the models. Note that this is going to take a while to run. Thus, I set eval to false so that I would not have to run this every time. I then saved the models at the end of this code so they could be loaded in later and analyzed without having to run this code every single time.
+```{r, eval=FALSE}
+#model fit for the linear regression model
+lin_reg_fit <- fit_resamples(
+  object=lin_reg_wkflw,
+  resamples=bikeFold
+)
+#save the model
+save(lin_reg_fit, file=here("Project", "modelRuns", "reg_lin_reg_fit.rda"))
+
+#model fit for regularized regression
+lin_reg_reg_fit <- tune_grid(
+  object=lin_reg_reg_wkflw,
+  resamples=bikeFold,
+  grid=lin_reg_reg_grid,
+  control=control_grid(verbose=TRUE)
+)
+save(lin_reg_reg_fit, file=here("Project", "modelRuns", "reg_lin_reg_reg_fit.rda"))
+
+#model fit for k-nearest-neighbors
+KNN_fit <- tune_grid(
+  object=KNN_wkflw,
+  resamples=bikeFold,
+  grid=KNN_grid,
+  control=control_grid(verbose=TRUE)
+)
+save(KNN_fit, file=here("Project", "modelRuns", "reg_KNN_fit.rda"))
+
+#model fit for the random forest
+rand_for_fit <- tune_grid(
+  object=rand_for_wkflw,
+  resamples=bikeFold,
+  grid=rand_for_grid,
+  control=control_grid(verbose=TRUE)
+)
+save(rand_for_fit, file=here("Project", "modelRuns", "reg_rand_for_fit.rda"))
+
+#model fit for boosted tree
+boosted_for_fit <- tune_grid(
+  object=boosted_for_wkflw,
+  resamples=bikeFold,
+  grid=boosted_for_grid,
+  control=control_grid(verbose=TRUE)
+)
+save(boosted_for_fit, file=here("Project", "modelRuns", "reg_boosted_for_fit.rda"))
+```
+
+## Results
+
+### Read in the models
+```{r}
+#read in the model runs from the classification code, rename to names that make sense
+load(here("Project", "modelRuns", "class_boosted_for_fit.rda"))
+class_boosted_for <- boosted_for_fit
+
+load(here("Project", "modelRuns", "class_KNN_fit.rda"))
+class_KNN <- KNN_fit
+
+load(here("Project", "modelRuns", "class_log_reg_fit.rda"))
+class_log_reg <- log_reg_fit
+
+load(here("Project", "modelRuns", "class_log_reg_reg_fit.rda"))
+class_log_reg_reg <- log_reg_reg_fit
+
+load(here("Project", "modelRuns", "class_rand_for_fit.rda"))
+class_rand_for <- rand_for_fit
+
+#read in the model runs from the regression code, rename to names that make sense
+load(here("Project", "modelRuns", "reg_boosted_for_fit.rda"))
+reg_boosted_for <- boosted_for_fit
+
+load(here("Project", "modelRuns", "reg_KNN_fit.rda"))
+reg_KNN <- KNN_fit
+
+load(here("Project", "modelRuns", "reg_lin_reg_fit.rda"))
+reg_lin_reg <- lin_reg_fit
+
+load(here("Project", "modelRuns", "reg_lin_reg_reg_fit.rda"))
+reg_lin_reg_reg <- lin_reg_reg_fit
+
+load(here("Project", "modelRuns", "reg_rand_for_fit.rda"))
+reg_rand_for <- rand_for_fit
+```
+
+```{r, include=FALSE}
+#run some old code so we can use the workflow
+#class
+library(themis) #for the upsample step in the recipe
+bikeClass <- read_excel(here("Project", "rawData", "bikingClass.xlsx"))
+bikeClass$Rnk <- factor(bikeClass$Rnk)
+bikeClass$ParcourTypeCategorical <- factor(bikeClass$ParcourTypeCategorical)
+bikeClass$WonByCategorical <- factor(bikeClass$WonByCategorical)
+bikeClass <- bikeClass %>% 
+  select(-c(raceName, RiderName, RiderLastName, Team, WinningTimeHours, WinningTimeMinutes, Months, Days, VertMeters, StartlistQualScore))
+set.seed(110)
+bikeSplitClass <- initial_split(bikeClass, prop=0.75, strata="Rnk")
+bikeTrainClass <- training(bikeSplitClass)
+bikeTestClass <- testing(bikeSplitClass)
+bikeRecipeClass <- recipe(Rnk~., data=bikeTrainClass) %>% 
+  step_dummy(all_nominal_predictors()) %>%
+  step_normalize(all_predictors()) %>%
+  step_upsample(Rnk, over_ratio=0.5)
+boosted_for_class <- boost_tree(mtry=tune(),
+                          trees=tune(),
+                          learn_rate=tune()) %>% 
+  set_engine("xgboost") %>% 
+  set_mode("classification")
+boosted_for_wkflw_class <- workflow() %>% 
+  add_model(boosted_for_class) %>% 
+  add_recipe(bikeRecipeClass)
+#reg
+bikeReg <- read_excel(here("Project", "rawData", "bikingDF.xlsx"))
+bikeReg$ParcourTypeCategorical <- factor(bikeReg$ParcourTypeCategorical)
+bikeReg$WonByCategorical <- factor(bikeReg$WonByCategorical)
+bikeReg <- bikeReg %>% 
+  select(-c(raceName, RiderName, RiderLastName, Team, WinningTimeHours, WinningTimeMinutes, Months, Days, VertMeters, StartlistQualScore))
+set.seed(110)
+bikeSplitReg <- initial_split(bikeReg, prop=0.75, strata="Rnk")
+bikeTrainReg <- training(bikeSplitReg)
+bikeTestReg <- testing(bikeSplitReg)
+bikeRecipeReg <- recipe(Rnk~., data=bikeTrainReg) %>% 
+  step_dummy(all_nominal_predictors()) %>%
+  step_normalize(all_predictors())
+boosted_for_reg <- boost_tree(mtry=tune(),
+                          trees=tune(),
+                          learn_rate=tune()) %>% 
+  set_engine("xgboost") %>% 
+  set_mode("regression")
+boosted_for_wkflw_reg <- workflow() %>% 
+  add_model(boosted_for_reg) %>% 
+  add_recipe(bikeRecipeReg)
+```
+
+### Analyzing how the classification models did
+First, let's see how the different models that we tuned performed across their tuning parameters
+```{r}
+#use autoplot to see how the tuned models performed
+autoplot(class_KNN)
+autoplot(class_log_reg_reg)
+autoplot(class_rand_for)
+autoplot(class_boosted_for)
+
+```
+
+Note that there is no plot of how the tuning did for the logistic regression did as we did not tune the logistic regression.
+Starting with K-nearest neighbors it appears that more neighbors lead to a better "area under the curve" (AUC). We should note, however, that accuracy drops between five and six neighbors and again between 10 and 11. It does not drop by a whole lot so I am not too worried. It appears to start leveling out around 11 or 12 so I believe that this number of neighbors may be the best decision.
+The regularized logistic regression provides some interesting insights. The best amount of penalty appears to be a low penalty. However, if we have no regularization, a complete ridge regularization, penalty does not matter and AUC appears to be just about the highest.
+The random forest graph has a lot going on. The most notable trend appears to be that as we increase the number of randomly selected predictors, AUC falls. Thus, having a low number of randomly selected predictors appears to be best. Also, it appears as if generally a higher number of trees is better but as long as you have more than 100 trees, the AUC does not vary a whole lot. Minimum node size does not appear to be super important on AUC.
+The boosted forest plots look a lot different than the random forest which is interesting. There is not as much variation across plots, they are mostly straight lines. Thus, for a boosted forest the number of randomly selected predictors does not appear to have a large influence on model performance. However, learning rate does. It appears that the best learning rate is the highest at 0.1. Also, other than the lowest learning rate, the number of trees in the forest does not matter as well. The only thing that appears to matter is the learning rate.
+
+Let's now see for each model set up, which specifically tuned model performed the best.
+```{r}
+#show the best 10 performing models for each model
+collect_metrics(class_log_reg) #no top 10 because no tuning was conducted
+show_best(class_KNN, n=10, metric='roc_auc')
+show_best(class_log_reg_reg, n=10, metric='roc_auc')
+show_best(class_rand_for, n=10, metric='roc_auc')
+show_best(class_boosted_for, n=10, metric='roc_auc')
+```
+Comparing the best model across models it appears that the K-nearest neighbors performed the worst. Interestingly enough, the regularized logistic regression performed worse than the non-regularized version. The two forest models performed the best with the boosted forest slightly outperforming the random forest. Thus, the best model appears to be the boosted forest with 17 randomly selected predictors, 450 trees, and a learning rate of 0.1.
+Let's test this model on the testing set!
+```{r}
+#select the best boosted forest
+best_class_mod_class <- select_best(class_boosted_for, metric='roc_auc')
+
+#fit to training set
+final_boosted_class <- finalize_workflow(boosted_for_wkflw_class, best_class_mod_class) %>% 
+  fit(bikeTrainClass)
+
+#evaluate on the testing set
+best_class_testing <- augment(final_boosted_class, bikeTestClass) %>% 
+  select(Rnk, starts_with(".pred"))
+
+#evaluate the model
+roc_auc(best_class_testing, truth=Rnk, .pred_notTop10)
+```
+
+The model worked even better than on our training set! Let's see the variable importance plot.
+
+```{r}
+#variable importance plot
+final_boosted_class %>%
+  extract_fit_parsnip() %>% 
+  vip(num_features=26)
+```
+
+This variable importance plot is super interesting. It makes sense that PCSRanking would be head and shoulders the best predictor of race results. This is the overall ranking of how good a rider is so obviously this would be a good predictor of rider performance. It makes sense that some of the next best predictors are the various components that say how good a rider is. It is interesting to see and makes me feel good about my model set up that the important variables are a mix from the rider profile dataset and the race profile dataset. It shows that the race set up and the individual rider play a major roll in how the race is won (or how riders get in the top 10). I am also happy to see that while there are definitely certain variables that are more important to others, all variables had some role to play
+Let's look at the ROC curve.
+```{r}
+#plot the ROC curve.
+roc_curve(best_class_testing, truth=Rnk, .pred_notTop10) %>% 
+  autoplot()
+
+```
+
+The ROC curve looks about as we would expect. It is by no means perfect but it does a lot better than just random guessing.
+Let's create a confusion matrix next.
+```{r}
+#confusion matrix
+conf_mat(best_class_testing, truth=Rnk, .pred_class) %>% 
+  autoplot(type="heatmap")
+
+```
+
+The confusion matrix reveals a lot about this model. It looks like the model got very good at predicting when a rider would not finish in the top 10 and was very hesitant to guess that a rider would finish in the top 10. The model did have a pretty low error rate when it comes to predicting a rider to finish in the top 10 given that the rider did finish in the top 10 (note that when I say "pretty low" I mean that it has a below 50% error rate, which is not great). This definitely reveals that the model is not doing as well as the ROC says it was doing.
+
+Now to see how the regression models did.
+
+### Analyzing how the regression models did
+
+First, let's see how the different models that we tuned performed across their tuning parameters
+```{r}
+#use autoplot to see how the tuned models performed
+autoplot(reg_KNN)
+autoplot(reg_lin_reg_reg)
+autoplot(reg_rand_for)
+autoplot(reg_boosted_for)
+
+```
+
+My initial reaction is that throughout we have a low r-squared value. It appears that none of our models did a very good job at predicting race outcome.
+For k-nearest neighbors the models follow the same trend that the KNN model did for the classification models, the more neighbors the better the model performed.
+For our regularized linear regression, we see another similar trend. Zero regularization, a complete ridge regression, seems to perform best across penalties. As regularization increases, the best models are those with a low penalty.
+Our random forest looks considerably different. First off, the number of trees and the number of nodes at a terminal branch does not appear to affect our r-squared value. The number of predictors also does not vary a whole lot as long as you do not pick two. Number of predictors greater than two works almost equally well across models.
+Our boosted forest shows some interesting results as well. The best r-squared values occur when our learning rate is 0.1. With a learning rate of 0.1, the models with more trees appear to perform better. We also see a similar trend in the random forest with the number of randomly selected predictors. As long as the number of predictors is greater than two, they all performed somewhat equally well.
+
+Let's now see for each model set up, which specifically tuned model performed the best.
+```{r}
+#show the best 10 performing models for each model
+collect_metrics(reg_lin_reg) #no top 10 because no tuning was conducted
+show_best(reg_KNN, n=10, metric='rsq')
+show_best(reg_lin_reg_reg, n=10, metric='rsq')
+show_best(reg_rand_for, n=10, metric='rsq')
+show_best(reg_boosted_for, n=10, metric='rsq')
+```
+Unlike the classification models, the K-nearest neighbors model outperformed the regularized and unregularized linear regression. The best regularized linear regression slightly outperformed the un-regularized linear regression. Similar to the classification models, the best models were the random forest models. It is also notable just by how much the random forest models out performed the other models. Once again, the boosted forest slightly outperformed the normal random forest. Thus, we will use this model in the rest of our analysis.
+
+Let's test this model on the testing set!
+```{r}
+#select the best boosted forest
+best_class_mod_reg <- select_best(reg_boosted_for, metric='rsq')
+
+#fit to training set
+final_boosted_reg <- finalize_workflow(boosted_for_wkflw_reg, best_class_mod_reg) %>% 
+  fit(bikeTrainReg)
+
+#evaluate on the testing set
+best_reg_testing <- augment(final_boosted_reg, bikeTestReg) %>% 
+  select(Rnk, starts_with(".pred"))
+
+#evaluate the model
+rsq(best_reg_testing, truth=Rnk, estimate=.pred)
+```
+
+The model worked about the same as our testing set. While it did not perform the best, we were asking the model to do a lot so I am not super disappointed in this result.
+
+```{r}
+#variable importance plot
+final_boosted_reg %>%
+  extract_fit_parsnip() %>% 
+  vip(num_features=26)
+```
+
+I am interested to see that the variable importance plot looks somewhat different than the variable importance plot from the classification data. We have the same top performers but in addition to the drop from PCSRanking to ClimberScore there is another drop from GCScore to NumFinished. This means that the model was using GCScore and ClimberScore more than just PCSRanking. In fact, PCSRanking dropped from having an importance of around 0.27 to having an importance of 0.17. 
+
+Let's create a predicted vs actual value plot
+```{r}
+best_reg_testing %>% 
+  ggplot(aes(x=.pred, y=Rnk)) +
+  geom_point(alpha=0.4, size=0.5) +
+  geom_abline(lty=2) +
+  labs(title="Predicted and Actual Values of Rank", x="Prediction", y="Actual Value")
+
+```
+
+Overall, it looks like the model performed fairly well. It is definitely worth noting that the algorithm does not seem to understand the concept of ranges. For example, it is impossible for you to finish in a place that is negative, which the model did predict a handful of times. All in all, the model did a pretty good job of getting a general range of where people would finish. I think it is worth noting that it appears as if there are more values below the line at low values and more values above the line at high values. I think this is because the model was not great at predicting riders who surprised and did well. The model also was not good at predicting when a rider disappoints by doing worse than they should have. This is because the model has no way of knowing why they disappointed. For example, it could have been because the favorite crashed which the model would have no way of knowing.
+
+### Predicting MSR
+Let's see how the boosted tree regression model does at predicting Milano Sanremo, one of the first major races of the 2023 calendar that happened on Saturday, March 18th. I only included the rider profile of the favorites for the race.
+```{r}
+#read in the dataset
+MSR2023 <- read_excel(here("Project", "rawData", "MSR2023.xlsx"))
+MSR2023conv <- MSR2023
+
+#remove unnecessary variables and factorize chategorical variables
+MSR2023$ParcourTypeCategorical <- factor(MSR2023$ParcourTypeCategorical)
+MSR2023$WonByCategorical <- factor(MSR2023$WonByCategorical)
+MSR2023 <- MSR2023 %>% 
+  select(-c(raceName, RiderLastName, Team, WinningTimeHours, WinningTimeMinutes, Months, Days, VertMeters, StartlistQualScore))
+
+#evaluate on the boosted tree model
+MSRPred <- augment(final_boosted_reg, MSR2023) %>% 
+  select(Rnk, starts_with(".pred"), RiderName)
+
+#Let's see how the model did
+head(MSRPred)
+```
+I don't think the model did that bad! It obviously is not great that it is giving Wout Van Aert a negative race result but putting Van Aert as the favorite for the race is not a bad call, he won it in 2020. Filippo Gana getting such a high prediction finishing result is not unreasonable. While people definitely had him down as an outsider favorite, he has not previously performed at this level in this type of race. A factor that made him a heavier favorite is the fact that his teammate, Tom Pidcock, was ruled out of the race last minute elevating him to sole leader on the team. This means that he had the full resources of the team behind him to push for the win. This factor was not included in our model. Van der Poel being third favorite out of this list and then winning is a very reasonable prediction by the model. He hasn't had any standout performances for the road biking season yet so it was somewhat surprising to see him in such good form and winning the race.
+![](C:/Users/noahr/Desktop/PSTAT131/Project/images/msrmvdp.jpg)
+Van der Poel celebrating his victory
+![](C:/Users/noahr/Desktop/PSTAT131/Project/images/MSRcouch.png)
+
+Maybe buy a bigger couch next time? (From left to right: Ganna, Van der Poel, Van Aert)
+
+### Conclusion
+Overall, I would say that the models performed better than expected. There are a lot of variables that go into a bike race and the models were able to do the best they could. There are a lot of important aspects to a bike race that was not able to be contained in the models. Some of the factors missing include whether the rider crashed, how the rider woke up feeling, whether the rider was in their top shape, and many more.
+Overall, the boosted tree model performed the best across both types of models. This probably should not be super surprising as the boosted tree model was the most advanced model that we used.
+I believe that the regression model worked better than the classification model. Because of how the classification model was split, the model worked to be really good at predicting when someone would not finish in the top ten instead of trying to figure out when someone would actually finish in the top ten. With a startlist of normally close to 200 riders per race and just a handful of favorites, it is not very profound to predict that a certain rider would not finish in the top ten. We want to know who is going to be in the top ten! If I were to run the classification problem again, I would at the very least change the over_ratio to a value closer to 1. I also would consider creating multiple classifications. This way the model would focus on more than just the riders in the top 10. While the regression model was not perfect, I do believe it worked better. It also provides some power in that if you are trying to predict which out of two riders will perform better, a numeric value that will be larger or smaller than another numeric value provides insights. This is better than the classification model where two favorites may just produce the result of "top10" for both riders.
+For both models, the most important variable by far was PCSRanking. This is probably because PCSRanking is a function of how well a rider does throughout the year. This reveals a potential weakness in our model. Because PCSRanking is a function of results, the results that we are using as the response variable will be a factor in PCSRanking. This is probably why PCSRanking was the most important variable. It is important to note that PCSRanking is determined by how well the rider did throughout the year, not solely how well a rider did in one race. If I were to run the models again, I would consider removing the PCSRanking variable and other variables that are a fucntion of how well the rider has done in races that are the response variable. Another way to do this would be to imput PCSRanking as a value before the race result was known. This would required somewhat complicated coding but would provide better insights.
+I believe that by the fact that there are more important variables based on the variable importance plot in the regression boosted model than in the classification boosted model reveals that the regression model was using more variables to make its conclusion. This is a good thing because it shows that the regression model was thinking about things beyond a riders ranking in order to make its decision on rank.
+I would be interested to analyze how the model performance would change throughout years. If I used this model to predict riders racing this year, would it do worse than last year? I think it would because the model that I built was based on racing in 2022. The racing strategy will probably change between 2022 and 2023, if ever so slightly. If we compounded this out to ten years then I think this effect would be more pronounced.
+If I were to build this model again, I would like to make sure the variables I use are not dependent on the response variable. I would also be interested to try to add variables such as "number of crashes" or "number of mechanicals". I think this could provide insight into the race. I also think it would be interesting to introduce a variable that says something about momentum. A variable that has a value that shows how a rider has done in the past 10ish races would be cool because then riders who are on a winning streak could be predicted to keep winning by the model.
+Overall, this was a big problem for a machine learning algorithm to solve. I think it did the best it could with the information given but a lot of information is very difficult to quantify and thus would be difficult for a machine learning algorithm to use.
+
+## Sources
+Data was obtained for this project from [ProCyclingStats](https://www.procyclingstats.com/). I downloaded the data and compiled it into the bikingClass spreadsheet and the raceProfile spreadsheet. I then downloaded all the race results and merged these three spreadsheets together to form a final dataframe.
